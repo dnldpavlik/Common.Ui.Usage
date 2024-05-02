@@ -1,0 +1,8 @@
+
+** Aclara.UHE.UI/src\app\collector-app\components\collector-lookup\collector-lookup.component.html **
+Line 154: <uui-grid (Pattern: <uui-grid)
+
+
+** Aclara.UHE.UI/src\app\collector-app\components\ran-configuration-lookup\ran-configuration-lookup.component.html **
+Line 147: <uui-grid (Pattern: <uui-grid)
+

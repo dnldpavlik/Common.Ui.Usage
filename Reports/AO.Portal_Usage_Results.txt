@@ -1,0 +1,175 @@
+
+** AppLib/AO.Portal.UI/app/src\app\ao-admin-app\components\event-groups\event-groups.component.html **
+Line 210: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-admin-app\components\event-types\event-types.component.html **
+Line 49: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-admin-app\components\notification-settings\notification-settings.component.html **
+Line 147: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-admin-app\components\report-group-management\report-group-management.component.html **
+Line 196: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-admin-app\components\resource-security\resource-security.component.html **
+Line 140: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-admin-app\components\silence-management\silence-management.component.html **
+Line 154: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-dma-app\components\create-dma-group\step-supply-flow\step-supply-flow.component.html **
+Line 14: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-dma-app\components\dma-events\event-trends\event-trends.component.html **
+Line 364: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-dma-app\components\dma-usage-loss\dma-usage-loss.component.html **
+Line 147: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\customers\account-details\tabs\customer-info\customer-info.component.html **
+Line 259: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\customers\account-details\tabs\electric-consumption\electric-consumption.component.html **
+Line 371: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\customers\account-details\tabs\generic-consumption\daily-usage-container\daily-usage-grid\daily-usage-grid.component.html **
+Line 7: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\customers\account-details\tabs\generic-consumption\interval-readings-container\interval-readings-grid\interval-readings-grid.component.html **
+Line 7: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\customers\account-details\tabs\water-gas-consumption\water-gas-consumption.component.html **
+Line 553: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\events\event-summary-dashboard\device-severity-filter-panel\device-severity-filter-panel.component.html **
+Line 77: <uui-grid (Pattern: <uui-grid)
+Line 175: <uui-grid (Pattern: <uui-grid)
+Line 273: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\events\event-summary-dashboard\polygon-selection-summary-grid-container\polygon-selection-summary-grid-container.component.html **
+Line 511: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\events\event-trends\aggregated-events\aggregated-events.component.html **
+Line 280: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\events\event-trends\event-duration\event-duration.component.html **
+Line 259: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-mdm-app\components\total-consumption\total-consumption.component.html **
+Line 422: <uui-date-range (Pattern: <uui-date-range)
+Line 1351: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\log-view\log-view.component.html **
+Line 665: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-management.component.html **
+Line 238: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-billing\tenant-details-billing.component.html **
+Line 861: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-data-export\tenant-details-data-export.component.html **
+Line 112: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-data-export\tenant-details-data-export-add\tenant-details-data-export-add.component.html **
+Line 1316: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-delivery-types\tenant-details-delivery-types.component.html **
+Line 112: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-historical-ingestion\tenant-details-historical-ingestion.component.html **
+Line 308: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-historical-ingestion-twacs\tenant-details-historical-ingestion-twacs.component.html **
+Line 147: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-kpi\tenant-details-kpi.component.html **
+Line 133: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-security-resources\tenant-details-security-resources.component.html **
+Line 119: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-operations-app\components\tenant-management\tenant-details\tenant-details-sensors\tenant-details-sensors.component.html **
+Line 469: <uui-grid (Pattern: <uui-grid)
+Line 637: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-report-app\components\cis-ignored-issues\cis-ignored-issues.component.html **
+Line 196: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-report-app\components\cis-report\cis-report.component.html **
+Line 553: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-report-app\components\cis-report-details\cis-report-details.component.html **
+Line 574: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-sensors-app\components\sensor-details\tabs\notes-tab\notes-tab.component.html **
+Line 114: <uui-date-range (Pattern: <uui-date-range)
+Line 189: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-sensors-app\components\sensor-details\tabs\primary-object-tab-view-battery\primary-object-tab-view-battery.component.html **
+Line 268: <uui-date-range (Pattern: <uui-date-range)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-sensors-app\components\sensor-details\tabs\primary-object-tab-view-events\primary-object-tab-view-events.component.html **
+Line 29: <uui-relative-date-rang (Pattern: <uui-relative-date-rang)
+Line 280: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-sensors-app\components\sensor-details\tabs\primary-object-tab-view-health-status\primary-object-tab-view-health-status.component.html **
+Line 36: <uui-relative-date-rang (Pattern: <uui-relative-date-rang)
+Line 343: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-sensors-app\components\sensor-details\tabs\primary-object-tab-views-installs\primary-object-tab-view-installs.component.html **
+Line 35: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-sensors-app\components\sensors\sensors.component.html **
+Line 469: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-vee-app\components\manual-editing\manual-editing.component.html **
+Line 378: <uui-grid (Pattern: <uui-grid)
+Line 455: <uui-grid (Pattern: <uui-grid)
+Line 791: <uui-grid (Pattern: <uui-grid)
+
+
+** AppLib/AO.Portal.UI/app/src\app\ao-vee-app\components\validate-estimate-edit-reads\validate-estimate-edit-reads.component.html **
+Line 246: <uui-relative-date-rang (Pattern: <uui-relative-date-rang)
+Line 249: <uui-relative-date-range-filter (Pattern: <uui-relative-date-range-filter)
+Line 686: <uui-grid (Pattern: <uui-grid)
+
