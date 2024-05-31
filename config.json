@@ -1,23 +1,22 @@
 {
     "patterns": [
-        "<uui-relative-date-rang",
-        "<uui-date-range",
-        "<uui-filter-panel",
-        "<uui-relative-date-range-filter",
-        "<uui-summary-chart",
-        "<uui-nested-chart-header",
-        "<uui-grid"
+        "<uui-grid "
     ],
     "application_repo": [
         {
             "source_path": "C:/Projects/AO.MDM/AppLib/AO.Portal.UI/app/src",
             "replace_path": "C:/Projects/AO.MDM/",
-            "report_name": "AO.Portal_Usage_Results.txt"
+            "report_name": "AO.Portal_Usage_Results"
         },
         {
             "source_path": "C:/Projects/AO.UHE/dev/Aclara.UHE.UI/src",
             "replace_path": "C:/Projects/AO.UHE/dev/",
-            "report_name": "AO.UHE_Usage_Results.txt"
+            "report_name": "AO.UHE_Usage_Results"
+        },
+        {
+            "source_path": "C:/Projects/AO.Common.UI.Ng/projects/ui-library/src",
+            "replace_path": "C:/Projects/AO.Common.UI.Ng/projects/",
+            "report_name": "Common_UI_Usage_Results"
         }
     ]
 }

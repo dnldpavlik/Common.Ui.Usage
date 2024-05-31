@@ -1,6 +1,7 @@
 import os
 import re
 import json
+from datetime import date
 
 def search_html_files(pattern, directory, output_file):
     """
@@ -35,27 +36,20 @@ def search_html_files(pattern, directory, output_file):
                     if results:
                         file_full_path = os.path.join(root, filename).replace(replace_path, '')
                         outfile.write(f"\n** {file_full_path} **\n")
-                        outfile.write('\n'.join(results) + '\n\n')
+                        outfile.write('\n'.join(results) + '\n')
 
 if __name__ == '__main__':
+    today = date.today()
 
     with open("config.json", 'r') as config_handle:
         config = json.load(config_handle)
 
     patterns = config['patterns']
-    # directory = config['source_path']
-    # replace_path = config['replace_path']
-    # output_file = "Reports/search_results.txt"  # Output file name
-
-    # search_html_files(patterns, directory, output_file)
-
-    #print(f"Search results written to: {output_file}")
-
     for application in config['application_repo']:
         directory = application['source_path']
         replace_path = application['replace_path']
         report_name = application['report_name']
-        output_file = f"Reports/{report_name}"
+        output_file = f"Reports/{report_name}-{today.strftime("%m-%d-%Y")}.txt"
 
         print(f"Searching patterns in: {directory}")
         search_html_files(patterns, directory, output_file)
