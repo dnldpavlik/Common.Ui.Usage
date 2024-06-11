@@ -1,6 +1,7 @@
 {
     "patterns": [
-        "<uui-grid "
+        "<uui-grid ",
+        "<uui-chart"
     ],
     "application_repo": [
         {
