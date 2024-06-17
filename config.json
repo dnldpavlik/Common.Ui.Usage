@@ -1,7 +1,6 @@
 {
     "patterns": [
-        "<uui-grid ",
-        "<uui-chart"
+        "<uui-relative-date-range"
     ],
     "application_repo": [
         {
@@ -18,6 +17,11 @@
             "source_path": "C:/Projects/AO.Common.UI.Ng/projects/ui-library/src",
             "replace_path": "C:/Projects/AO.Common.UI.Ng/projects/",
             "report_name": "Common_UI_Usage_Results"
+        },
+        {
+            "source_path": "C:/Projects/AO.PhaseDetect/AppLib/AO.PhaseDetect.UI/ClientApp/src",
+            "replace_path": "C:/Projects/AO.PhaseDetect/AppLib/",
+            "report_name": "AO.PhaseDetect_Usage_Results"
         }
     ]
 }
