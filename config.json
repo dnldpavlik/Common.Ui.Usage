@@ -1,6 +1,10 @@
 {
     "patterns": [
-        "<uui-relative-date-range"
+        "<uui-grid",
+        "<uui-radio-button-list-filter",
+        "<uui-primary-object-component",
+        "<uui-date-range",
+        "<uui-date-range-filter"
     ],
     "application_repo": [
         {
