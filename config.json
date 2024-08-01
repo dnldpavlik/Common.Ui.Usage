@@ -1,8 +1,7 @@
 {
     "patterns": [
-        "<uui-data-view-container",
-        "<grid-filter-layout",
-        "<uui-chart"
+        "<uui-column-number",
+        "<uui-relative-date-range"
     ],
     "application_repo": [
         {
