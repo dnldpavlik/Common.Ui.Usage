@@ -1,7 +1,9 @@
 {
     "patterns": [
-        "<uui-column-number",
-        "<uui-relative-date-range"
+        "<uui-add-view-profile-modal",
+        "<uui-page-search",
+        "<uui-text-area",
+        "<uui-generic-input"
     ],
     "application_repo": [
         {
