@@ -1,9 +1,18 @@
 {
     "patterns": [
-        "<uui-add-view-profile-modal",
-        "<uui-page-search",
-        "<uui-text-area",
-        "<uui-generic-input"
+        "<uui-grid",
+        "<uui-user",
+        "<uui-help",
+        "<uui-textbox",
+        "<uui-filter-panel",
+        "<uui-date-range-filter",
+        "<uui-multiselect-filter",
+        "<uui-grid-filter-layout",
+        "<uui-modal-footer",
+        "<uui-modal-header",
+        "<uui-add-items",
+        "<uui-number-input",
+        "<uui-chart"
     ],
     "application_repo": [
         {
