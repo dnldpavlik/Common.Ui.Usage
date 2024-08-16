@@ -1,18 +1,8 @@
 {
     "patterns": [
         "<uui-grid",
-        "<uui-user",
-        "<uui-help",
-        "<uui-textbox",
-        "<uui-filter-panel",
-        "<uui-date-range-filter",
-        "<uui-multiselect-filter",
-        "<uui-grid-filter-layout",
-        "<uui-modal-footer",
-        "<uui-modal-header",
-        "<uui-add-items",
-        "<uui-number-input",
-        "<uui-chart"
+        "<uui-toast",
+        "AlertService"
     ],
     "application_repo": [
         {
