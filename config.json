@@ -1,8 +1,6 @@
 {
     "patterns": [
-        "<uui-grid",
-        "<uui-toast",
-        "AlertService"
+        "<uui-grid"
     ],
     "application_repo": [
         {
