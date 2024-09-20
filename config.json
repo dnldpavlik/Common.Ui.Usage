@@ -1,6 +1,10 @@
 {
     "patterns": [
-        "<uui-grid"
+        "<uui-grid",
+        "<uui-multiselect-filter",
+        "<uui-filter-panel",
+        "<uui-add-items",
+        "<uui-date-range"
     ],
     "application_repo": [
         {
