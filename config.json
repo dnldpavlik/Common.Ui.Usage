@@ -1,6 +1,7 @@
 {
     "patterns": [
-        "<uui-grid"
+        "<uui-text-area",
+        "<uui-relative-date-range"
     ],
     "application_repo": [
         {
