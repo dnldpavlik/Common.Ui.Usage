@@ -1,7 +1,29 @@
 {
     "patterns": [
-        "<uui-text-area",
-        "<uui-relative-date-range"
+        "<uui-grid",
+        "<uui-what-is-new-modal",
+        "<uui-what-is-new",
+        "<uui-utility-bar",
+        "<uui-tag",
+        "<uui-style-card",
+        "<uui-status-card",
+        "<uui-slideout-panel",
+        "<uui-pinned-menu",
+        "<uui-panel",
+        "<uui-page-title",
+        "<uui-menu-search",
+        "<uui-menu-item",
+        "<uui-menu-container",
+        "<uui-menu",
+        "<uui-header-menu-item",
+        "<uui-collapsible-panel",
+        "<uui-card-panel2",
+        "<uui-card-heading",
+        "<uui-about-button",
+        "<uui-about",
+        "<pui-utility-bar",
+        "<mui-callout-cards",
+        "<uui-bread-crumb"
     ],
     "application_repo": [
         {
