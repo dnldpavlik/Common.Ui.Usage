@@ -7,3 +7,22 @@ license = "MIT"
 
 [project.scripts]
 common-ui-usage = "main:cli"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes
+    "E", "W", # pycodestyle
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test_main.py" = ["RUF012"]  # ClassVar annotations unnecessary in test classes
