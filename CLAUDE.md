@@ -8,27 +8,39 @@
 
 ```
 Common.Ui.Usage/
-├── main.py          # CLI app — data structures, pure functions, I/O, argparse
-├── test_main.py     # Unit tests (unittest, 81 tests)
-├── config.json      # Patterns to search and repositories to scan
-├── .gitignore       # Ignores /Reports and __pycache__/
-└── Reports/         # Generated output (gitignored, created at runtime)
+├── main.py                       # CLI app — data structures, pure functions, I/O, argparse
+├── test_main.py                  # Unit tests (unittest, 81 tests)
+├── config.json                   # Patterns to search and repositories to scan
+├── pyproject.toml                # Project metadata, CLI entry point, tool config (ruff, mypy)
+├── Makefile                      # Dev task runner (make check, make test, make lint, etc.)
+├── .github/workflows/ci.yml      # GitHub Actions CI (lint, format, typecheck, test)
+├── .pre-commit-config.yaml       # Pre-commit hooks (ruff, mypy)
+├── .gitignore                    # Ignores Reports/, caches, build artifacts
+└── Reports/                      # Generated output (gitignored, created at runtime)
 ```
 
 ## Tech Stack
 
-- **Language:** Python 3.10+ (standard library only)
-- **Dependencies:** None external. Uses `os`, `re`, `json`, `datetime`, `argparse`, `logging`, `pathlib`, `dataclasses`, `sys`
-- **Package manager:** None (no requirements.txt, setup.py, or pyproject.toml)
-- **Build system:** None
-- **Testing:** unittest (standard library). Run with `python3 -m unittest test_main -v`
-- **Linting:** None configured
-- **CI/CD:** None configured
+- **Language:** Python 3.10+ (standard library only — zero runtime dependencies)
+- **Stdlib modules:** `argparse`, `collections.abc`, `dataclasses`, `datetime`, `json`, `logging`, `os`, `pathlib`, `re`, `sys`
+- **Packaging:** `pyproject.toml` with `[project.scripts]` entry point
+- **Testing:** `unittest` (stdlib). Run with `make test` or `python3 -m unittest test_main -v`
+- **Linting:** `ruff` (check + format)
+- **Type checking:** `mypy --strict`
+- **CI/CD:** GitHub Actions — runs lint, format, typecheck, and tests on Python 3.10–3.13
+- **Pre-commit:** `pre-commit` hooks for ruff and mypy
+- **Task runner:** `Makefile`
 
-## How to Run
+## Quick Start
 
 ```bash
-# Default: reads config.json, writes to Reports/
+# Run all quality checks (lint, format, typecheck, test)
+make check
+
+# Run just the tests
+make test
+
+# Run the scanner
 python3 main.py
 
 # Custom config and output directory
@@ -36,6 +48,10 @@ python3 main.py --config path/to/config.json --output-dir path/to/output
 
 # Verbose logging
 python3 main.py -v
+
+# Install as CLI tool (optional)
+pip install .
+common-ui-usage --help
 ```
 
 ### CLI Arguments
@@ -47,6 +63,30 @@ python3 main.py -v
 | `--verbose` | `-v` | off | Enable debug-level logging |
 
 The script returns exit code `0` on success, `1` on config errors.
+
+### Makefile Commands
+
+| Command | What it does |
+|---|---|
+| `make check` | Run all checks: lint, format, typecheck, test |
+| `make test` | Run unit tests (`python3 -m unittest test_main -v`) |
+| `make lint` | Run ruff linter (`ruff check .`) |
+| `make format` | Check formatting (`ruff format --check .`) |
+| `make format-fix` | Auto-fix formatting (`ruff format .`) |
+| `make typecheck` | Run mypy strict (`mypy --strict main.py`) |
+
+## Dev Tool Setup
+
+Install dev tools (not required for running the scanner):
+
+```bash
+pip install ruff mypy pre-commit
+pre-commit install
+```
+
+Tool configuration lives in `pyproject.toml`:
+- **`[tool.ruff]`** — target Python 3.10, 100-char line length, rule sets: pyflakes, pycodestyle, isort, pep8-naming, pyupgrade, flake8-bugbear, flake8-simplify, ruff-specific
+- **`[tool.mypy]`** — strict mode, warn on Any returns
 
 ## Configuration (`config.json`)
 
@@ -69,7 +109,7 @@ Note: The configured paths currently use Windows-style paths (`C:/Projects/...`)
 - **SOLID / SRP**: Each function has a single responsibility — pattern building, line scanning, file scanning, directory walking, formatting, and file writing are all separate functions
 - **Functional core, imperative shell**: Pure functions (`scan_line`, `format_report`, `build_patterns`) contain all logic; I/O functions (`scan_file`, `write_report`, `find_html_files`) are thin wrappers
 - **Immutable data**: All data structures (`MatchResult`, `FileResult`, `RepoConfig`) are frozen dataclasses
-- **Type safety**: Full type annotations throughout, using `from __future__ import annotations`
+- **Type safety**: Full type annotations throughout, enforced by `mypy --strict`
 - **Pipeline composition**: `main()` orchestrates a clear pipeline: config → patterns → scan → format → write
 
 ### Data Structures
@@ -93,7 +133,7 @@ All are `@dataclass(frozen=True)` — immutable after creation.
 | **File scanning** | `find_html_files()`, `scan_file()`, `scan_directory()` | Yes |
 | **Config loading** | `load_config()` | Yes |
 | **Report writing** | `write_report()` | Yes |
-| **CLI** | `parse_args()`, `main()` | Yes |
+| **CLI** | `parse_args()`, `main()`, `cli()` | Yes |
 
 ### Pattern Matching
 - Patterns starting with `<` get a negative lookahead regex (`(?![!?-])`) appended to avoid matching extended tag names (e.g., `<uui-menu` won't match `<uui-menu-item`)
@@ -129,23 +169,27 @@ All previously documented bugs have been fixed:
 ## Code Conventions
 
 - **Naming:** snake_case for variables and functions, PascalCase for dataclasses (standard Python)
-- **Type hints:** Full annotations on all function signatures
+- **Type hints:** Full annotations on all function signatures, enforced by `mypy --strict`
 - **Docstrings:** Google-style format on all public functions
 - **Data:** Frozen dataclasses for structured data, no raw dicts/tuples in public API
 - **Logging:** `logging` module, not `print()`
 - **Paths:** `pathlib.Path`, not string concatenation
-- **Commit messages:** Use conventional commit prefixes (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`)
+- **Formatting:** Enforced by `ruff format` (100-char line length)
+- **Commit messages:** Use conventional commit prefixes (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`)
 - **Git workflow:** Development on feature branches, `master` as main branch
+- **Quality gate:** `make check` must pass before committing (enforced by pre-commit hooks)
 
 ## Testing
 
 Run the full test suite:
 
 ```bash
+make test
+# or
 python3 -m unittest test_main -v
 ```
 
-### Test Organization (81 tests across 15 classes)
+### Test Organization (81 tests across 16 classes)
 
 | Class | Tests | What it covers |
 |---|---|---|
@@ -181,5 +225,5 @@ Key regression guards:
 - Keep I/O functions thin — delegate logic to pure functions
 - Use frozen dataclasses for any new data structures
 - Add type annotations to all new functions
-- Run `python3 -m unittest test_main -v` before committing changes
+- Run `make check` before committing changes
 - When adding new functionality, add corresponding tests at the appropriate layer
