@@ -9,12 +9,11 @@
 ```
 Common.Ui.Usage/
 ├── main.py          # Primary script - all scanning and report logic
+├── test_main.py     # Unit tests (unittest)
 ├── config.json      # Patterns to search and repositories to scan
 ├── .gitignore       # Ignores /Reports output directory
 └── Reports/         # Generated output (gitignored, created at runtime)
 ```
-
-This is a single-script project with no subdirectories in source control.
 
 ## Tech Stack
 
@@ -22,7 +21,7 @@ This is a single-script project with no subdirectories in source control.
 - **Dependencies:** None external. Uses only `os`, `re`, `json`, `datetime`
 - **Package manager:** None (no requirements.txt, setup.py, or pyproject.toml)
 - **Build system:** None
-- **Testing:** None configured
+- **Testing:** unittest (standard library). Run with `python3 -m unittest test_main -v`
 - **Linting:** None configured
 - **CI/CD:** None configured
 
@@ -69,9 +68,11 @@ Note: The configured paths currently use Windows-style paths (`C:/Projects/...`)
 
 ## Known Issues
 
-- **Line 59 f-string syntax:** The nested double quotes in `today.strftime("%m-%d-%Y")` inside the f-string may cause a `SyntaxError` on Python versions before 3.12 (which added support for nested quotes in f-strings). For broader compatibility, use single quotes: `today.strftime('%m-%d-%Y')`.
-- **`replace_path` scoping:** The `replace_path` variable used inside `search_html_files()` (line 37) relies on a module-level variable set in the `__main__` block rather than being passed as a function parameter.
-- **`line_num` increment placement:** The `line_num += 1` on line 32 is inside the inner pattern loop, causing it to increment once per pattern rather than once per line.
+All previously documented bugs have been fixed:
+
+- ~~**f-string syntax:**~~ Fixed — uses single quotes in `strftime('%m-%d-%Y')`
+- ~~**`replace_path` scoping:**~~ Fixed — passed as an explicit function parameter
+- ~~**`line_num` increment placement:**~~ Fixed — increments once per line, not per pattern
 
 ## Code Conventions
 
@@ -80,9 +81,27 @@ Note: The configured paths currently use Windows-style paths (`C:/Projects/...`)
 - **Commit messages:** Use conventional commit prefixes (`chore:`, `config:`) for maintenance changes
 - **Git workflow:** Development on feature branches, `master` as main branch
 
+## Testing
+
+Run the full test suite:
+
+```bash
+python3 -m unittest test_main -v
+```
+
+Tests cover four areas:
+
+- **TestBuildPatterns** — regex construction, negative lookahead, escaping
+- **TestSearchHtmlFiles** — file scanning, line numbers, output format, recursion, path replacement
+- **TestPatternMatching** — edge cases like extended tag names, self-closing tags, non-tag patterns
+- **TestConfigLoading** — validates config.json structure and pattern compilation
+
+When adding new functionality, add corresponding tests. The `test_line_numbers_not_inflated_by_pattern_count` test is a regression guard for a previously fixed bug.
+
 ## Development Guidelines
 
 - Keep all configuration in `config.json` rather than hardcoding values in `main.py`
 - The `Reports/` directory is gitignored - do not commit generated reports
 - When adding new UI component patterns, add them to the `patterns` array in `config.json`
 - When adding new application repositories to scan, add entries to the `application_repo` array in `config.json`
+- Run `python3 -m unittest test_main -v` before committing changes

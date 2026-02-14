@@ -3,14 +3,15 @@ import re
 import json
 from datetime import date
 
-def search_html_files(patterns, directory, output_file):
+def search_html_files(patterns, directory, output_file, replace_path):
     """
     Searches HTML files recursively within a directory for a given pattern.
 
     Args:
-        pattern (str): The regular expression pattern to search for.
+        patterns (list): List of tuples (original_pattern, regex_pattern) to search for.
         directory (str): The directory to search recursively.
         output_file (str): The path to the output text file.
+        replace_path (str): Path prefix to strip from output for readability.
     """
 
     with open(output_file, 'w') as outfile:
@@ -29,7 +30,7 @@ def search_html_files(patterns, directory, output_file):
                                         start, end = match.span()
                                         excerpt = line[start:end].strip()
                                         results.append(f"Line {line_num}: {excerpt} (Pattern: {pattern})")
-                                    line_num += 1
+                                line_num += 1
                     except FileNotFoundError:
                         outfile.write(f"File not found: {file_path}\n")
 
@@ -56,10 +57,10 @@ if __name__ == '__main__':
         directory = application['source_path']
         replace_path = application['replace_path']
         report_name = application['report_name']
-        output_file = f"Reports/{report_name}-{today.strftime("%m-%d-%Y")}.txt"
+        output_file = f"Reports/{report_name}-{today.strftime('%m-%d-%Y')}.txt"
 
         print(f"Searching patterns in: {directory}")
-        search_html_files(merged_patterns, directory, output_file)
+        search_html_files(merged_patterns, directory, output_file, replace_path)
         print(f"Search results written to: {output_file}")
 
     print("Search completed for all applications.")
