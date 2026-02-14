@@ -237,5 +237,10 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == '__main__':
+def cli() -> None:
+    """Entry point for pyproject.toml console_scripts."""
     sys.exit(main())
+
+
+if __name__ == '__main__':
+    cli()

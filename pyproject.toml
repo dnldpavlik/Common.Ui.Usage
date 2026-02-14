@@ -1,0 +1,9 @@
+[project]
+name = "common-ui-usage"
+version = "1.0.0"
+description = "Scan HTML files for shared UI component usage patterns"
+requires-python = ">=3.10"
+license = "MIT"
+
+[project.scripts]
+common-ui-usage = "main:cli"
