@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Data structures (immutable)
@@ -130,15 +131,15 @@ def scan_directory(
     return results
 
 
-def load_config(config_path: Path) -> dict:
+def load_config(config_path: Path) -> dict[str, Any]:
     """Load and validate configuration from JSON file."""
     with open(config_path) as f:
-        config = json.load(f)
+        config: dict[str, Any] = json.load(f)
     validate_config(config)
     return config
 
 
-def validate_config(config: dict) -> None:
+def validate_config(config: dict[str, Any]) -> None:
     """Validate config structure. Raises ValueError on invalid config."""
     if "patterns" not in config:
         raise ValueError("Config missing required key: 'patterns'")
@@ -154,7 +155,7 @@ def validate_config(config: dict) -> None:
                 raise ValueError(f"application_repo[{i}] missing required key: '{key}'")
 
 
-def parse_repo_configs(raw_repos: list[dict]) -> list[RepoConfig]:
+def parse_repo_configs(raw_repos: list[dict[str, str]]) -> list[RepoConfig]:
     """Parse raw repo dicts into validated RepoConfig objects."""
     return [
         RepoConfig(
