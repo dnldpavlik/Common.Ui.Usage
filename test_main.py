@@ -191,6 +191,57 @@ class TestSearchHtmlFiles(unittest.TestCase):
         output = self._read_output()
         self.assertIn('(Pattern: <uui-grid)', output)
 
+    def test_realistic_page_exact_line_numbers(self):
+        """Full-page HTML with components on known lines. Verifies every reported
+        line number matches the actual position in the source file."""
+        html = (
+            '<html>\n'                                          # line 1
+            '<head><title>Dashboard</title></head>\n'           # line 2
+            '<body>\n'                                          # line 3
+            '  <div class="container">\n'                       # line 4
+            '    <uui-grid columns="3">\n'                      # line 5  -- uui-grid
+            '      <uui-panel header="Sales">\n'                # line 6  -- uui-panel
+            '        <p>Content here</p>\n'                     # line 7
+            '      </uui-panel>\n'                              # line 8
+            '      <uui-panel header="Revenue">\n'              # line 9  -- uui-panel
+            '        <uui-button label="Refresh"></uui-button>\n'  # line 10 -- uui-button
+            '      </uui-panel>\n'                              # line 11
+            '    </uui-grid>\n'                                 # line 12
+            '    <div class="footer">\n'                        # line 13
+            '      <uui-button label="Save" />\n'              # line 14 -- uui-button
+            '    </div>\n'                                      # line 15
+            '  </div>\n'                                        # line 16
+            '</body>\n'                                         # line 17
+            '</html>\n'                                         # line 18
+        )
+        self._create_html('app/dashboard.component.html', html)
+        patterns = build_patterns(['<uui-grid', '<uui-panel', '<uui-button'])
+        search_html_files(patterns, self.test_dir, self.output_file, self.test_dir + '/')
+        output = self._read_output()
+
+        # Parse every "Line N: ... (Pattern: ...)" entry from the output
+        result_lines = [l.strip() for l in output.split('\n') if l.strip().startswith('Line ')]
+
+        # Build a list of (line_number, pattern) from output
+        import re as _re
+        parsed = []
+        for entry in result_lines:
+            m = _re.match(r'Line (\d+): .+ \(Pattern: (.+)\)', entry)
+            self.assertIsNotNone(m, f"Could not parse result line: {entry}")
+            parsed.append((int(m.group(1)), m.group(2)))
+
+        # Expected matches based on the HTML above
+        expected = [
+            (5,  '<uui-grid'),
+            (6,  '<uui-panel'),
+            (9,  '<uui-panel'),
+            (10, '<uui-button'),
+            (14, '<uui-button'),
+        ]
+
+        self.assertEqual(sorted(parsed), sorted(expected),
+                         f"Mismatch.\nExpected: {sorted(expected)}\nGot:      {sorted(parsed)}")
+
 
 class TestPatternMatching(unittest.TestCase):
     """Tests for specific pattern matching edge cases."""
