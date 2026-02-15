@@ -11,22 +11,33 @@ from pathlib import Path
 
 from main import (
     NEGATIVE_LOOKAHEAD,
+    ComponentMatch,
     FileResult,
     MatchResult,
+    ReleaseInfo,
     RepoConfig,
+    ResolvedPage,
+    RouteMapping,
+    ScanReport,
     build_pattern,
     build_patterns,
+    build_resolved_pages,
+    build_scan_report,
     find_html_files,
     format_file_result,
     format_report,
     load_config,
     main,
     parse_args,
+    parse_release_info,
     parse_repo_configs,
+    resolve_route,
     scan_directory,
     scan_file,
     scan_line,
+    scan_report_to_dict,
     validate_config,
+    write_json_report,
     write_report,
 )
 
@@ -722,6 +733,595 @@ class TestDataStructures(unittest.TestCase):
     def test_match_result_equality(self):
         a = MatchResult(1, "<uui-button", "<uui-button")
         b = MatchResult(1, "<uui-button", "<uui-button")
+        self.assertEqual(a, b)
+
+
+# ===========================================================================
+# TestRouteMapping — route resolution
+# ===========================================================================
+
+
+class TestRouteResolution(unittest.TestCase):
+    """Tests for resolve_route — pure function, no I/O."""
+
+    def test_matches_glob_pattern(self):
+        route_map = (RouteMapping("app/dashboard/**", "/dashboard", "Dashboard"),)
+        route, name = resolve_route(
+            "/projects/src/app/dashboard/page.html", "/projects/src/", route_map
+        )
+        self.assertEqual(route, "/dashboard")
+        self.assertEqual(name, "Dashboard")
+
+    def test_no_match_returns_none(self):
+        route_map = (RouteMapping("app/dashboard/**", "/dashboard", "Dashboard"),)
+        route, name = resolve_route(
+            "/projects/src/app/settings/page.html", "/projects/src/", route_map
+        )
+        self.assertIsNone(route)
+        self.assertIsNone(name)
+
+    def test_empty_route_map(self):
+        route, name = resolve_route("/projects/src/app/page.html", "/projects/src/", ())
+        self.assertIsNone(route)
+        self.assertIsNone(name)
+
+    def test_first_match_wins(self):
+        route_map = (
+            RouteMapping("app/dashboard/**", "/dashboard", "Dashboard"),
+            RouteMapping("app/**", "/app", "App"),
+        )
+        route, name = resolve_route(
+            "/projects/src/app/dashboard/page.html", "/projects/src/", route_map
+        )
+        self.assertEqual(route, "/dashboard")
+        self.assertEqual(name, "Dashboard")
+
+    def test_exact_file_pattern(self):
+        route_map = (RouteMapping("app/home.component.html", "/home", "Home"),)
+        route, name = resolve_route("/src/app/home.component.html", "/src/", route_map)
+        self.assertEqual(route, "/home")
+        self.assertEqual(name, "Home")
+
+
+# ===========================================================================
+# TestBuildResolvedPages — structured page building
+# ===========================================================================
+
+
+class TestBuildResolvedPages(unittest.TestCase):
+    """Tests for build_resolved_pages — pure function."""
+
+    def test_groups_matches_by_tag(self):
+        results = [
+            FileResult(
+                "/src/app/page.html",
+                (
+                    MatchResult(5, "<uui-grid", "<uui-grid"),
+                    MatchResult(10, "<uui-grid", "<uui-grid"),
+                    MatchResult(7, "<uui-panel", "<uui-panel"),
+                ),
+            )
+        ]
+        pages = build_resolved_pages(results, "/src/", ())
+        self.assertEqual(len(pages), 1)
+        page = pages[0]
+        tags = {c.tag for c in page.components}
+        self.assertEqual(tags, {"<uui-grid", "<uui-panel"})
+
+    def test_groups_lines_correctly(self):
+        results = [
+            FileResult(
+                "/src/page.html",
+                (
+                    MatchResult(5, "<uui-grid", "<uui-grid"),
+                    MatchResult(12, "<uui-grid", "<uui-grid"),
+                ),
+            )
+        ]
+        pages = build_resolved_pages(results, "/src/", ())
+        grid = next(c for c in pages[0].components if c.tag == "<uui-grid")
+        self.assertEqual(grid.lines, (5, 12))
+
+    def test_strips_replace_path(self):
+        results = [FileResult("/projects/src/app/page.html", (MatchResult(1, "x", "x"),))]
+        pages = build_resolved_pages(results, "/projects/src/", ())
+        self.assertEqual(pages[0].file_path, "app/page.html")
+
+    def test_resolves_route(self):
+        route_map = (RouteMapping("app/dashboard/**", "/dashboard", "Dashboard"),)
+        results = [
+            FileResult(
+                "/src/app/dashboard/page.html",
+                (MatchResult(1, "<uui-grid", "<uui-grid"),),
+            )
+        ]
+        pages = build_resolved_pages(results, "/src/", route_map)
+        self.assertEqual(pages[0].route, "/dashboard")
+        self.assertEqual(pages[0].page_name, "Dashboard")
+
+    def test_no_route_match(self):
+        results = [FileResult("/src/app/page.html", (MatchResult(1, "x", "x"),))]
+        pages = build_resolved_pages(results, "/src/", ())
+        self.assertIsNone(pages[0].route)
+        self.assertIsNone(pages[0].page_name)
+
+
+# ===========================================================================
+# TestBuildScanReport — full report building
+# ===========================================================================
+
+
+class TestBuildScanReport(unittest.TestCase):
+    """Tests for build_scan_report — pure function."""
+
+    def test_builds_report_structure(self):
+        results = [FileResult("/src/page.html", (MatchResult(1, "<uui-grid", "<uui-grid"),))]
+        report = build_scan_report(
+            application="TestApp",
+            base_url="https://test.example.com",
+            scan_date="02-15-2026",
+            release=None,
+            results=results,
+            replace_path="/src/",
+            route_map=(),
+        )
+        self.assertEqual(report.application, "TestApp")
+        self.assertEqual(report.base_url, "https://test.example.com")
+        self.assertEqual(report.scan_date, "02-15-2026")
+        self.assertIsNone(report.release)
+        self.assertEqual(len(report.pages), 1)
+
+    def test_includes_release_info(self):
+        release = ReleaseInfo("2.4.0", ("uui-grid",), "2026-02-14")
+        report = build_scan_report(
+            application="App",
+            base_url=None,
+            scan_date="02-15-2026",
+            release=release,
+            results=[],
+            replace_path="",
+            route_map=(),
+        )
+        self.assertIsNotNone(report.release)
+        self.assertEqual(report.release.version, "2.4.0")
+
+    def test_empty_results_produces_empty_pages(self):
+        report = build_scan_report(
+            application="App",
+            base_url=None,
+            scan_date="02-15-2026",
+            release=None,
+            results=[],
+            replace_path="",
+            route_map=(),
+        )
+        self.assertEqual(report.pages, ())
+
+
+# ===========================================================================
+# TestScanReportToDict — JSON serialization
+# ===========================================================================
+
+
+class TestScanReportToDict(unittest.TestCase):
+    """Tests for scan_report_to_dict."""
+
+    def test_produces_dict(self):
+        report = ScanReport(
+            application="App",
+            base_url=None,
+            scan_date="02-15-2026",
+            release=None,
+            pages=(),
+        )
+        d = scan_report_to_dict(report)
+        self.assertIsInstance(d, dict)
+        self.assertEqual(d["application"], "App")
+        self.assertIsNone(d["base_url"])
+        self.assertEqual(d["pages"], [])
+
+    def test_serializes_nested_structures(self):
+        report = ScanReport(
+            application="App",
+            base_url="https://example.com",
+            scan_date="02-15-2026",
+            release=ReleaseInfo("1.0.0", ("uui-grid",), "2026-01-01"),
+            pages=(
+                ResolvedPage(
+                    file_path="app/page.html",
+                    route="/home",
+                    page_name="Home",
+                    components=(ComponentMatch(tag="<uui-grid", lines=(5, 10)),),
+                ),
+            ),
+        )
+        d = scan_report_to_dict(report)
+        self.assertEqual(d["release"]["version"], "1.0.0")
+        self.assertEqual(len(d["pages"]), 1)
+        self.assertEqual(d["pages"][0]["route"], "/home")
+        self.assertEqual(d["pages"][0]["components"][0]["tag"], "<uui-grid")
+        self.assertEqual(d["pages"][0]["components"][0]["lines"], [5, 10])
+
+    def test_round_trips_through_json(self):
+        report = ScanReport(
+            application="App",
+            base_url=None,
+            scan_date="02-15-2026",
+            release=None,
+            pages=(
+                ResolvedPage(
+                    file_path="page.html",
+                    route=None,
+                    page_name=None,
+                    components=(ComponentMatch(tag="<uui-button", lines=(1,)),),
+                ),
+            ),
+        )
+        d = scan_report_to_dict(report)
+        json_str = json.dumps(d)
+        parsed = json.loads(json_str)
+        self.assertEqual(parsed["application"], "App")
+        self.assertEqual(parsed["pages"][0]["components"][0]["tag"], "<uui-button")
+
+
+# ===========================================================================
+# TestExtendedConfigValidation — new optional config fields
+# ===========================================================================
+
+
+class TestExtendedConfigValidation(unittest.TestCase):
+    """Tests for extended config validation with optional fields."""
+
+    def _base_config(self):
+        return {
+            "patterns": ["<uui-button"],
+            "application_repo": [
+                {"source_path": "/tmp", "replace_path": "/", "report_name": "test"},
+            ],
+        }
+
+    def test_config_with_release_passes(self):
+        config = self._base_config()
+        config["release"] = {
+            "version": "2.4.0",
+            "affected_components": ["uui-grid"],
+            "date": "2026-02-14",
+        }
+        validate_config(config)  # should not raise
+
+    def test_release_missing_version_fails(self):
+        config = self._base_config()
+        config["release"] = {"affected_components": [], "date": "2026-02-14"}
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(config)
+        self.assertIn("version", str(ctx.exception))
+
+    def test_release_not_a_dict_fails(self):
+        config = self._base_config()
+        config["release"] = "not-a-dict"
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(config)
+        self.assertIn("release", str(ctx.exception))
+
+    def test_config_with_base_url_passes(self):
+        config = self._base_config()
+        config["application_repo"][0]["base_url"] = "https://example.com"
+        validate_config(config)  # should not raise
+
+    def test_base_url_not_a_string_fails(self):
+        config = self._base_config()
+        config["application_repo"][0]["base_url"] = 123
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(config)
+        self.assertIn("base_url", str(ctx.exception))
+
+    def test_config_with_route_map_passes(self):
+        config = self._base_config()
+        config["application_repo"][0]["route_map"] = [
+            {"path_pattern": "app/**", "route": "/home", "name": "Home"},
+        ]
+        validate_config(config)  # should not raise
+
+    def test_route_map_not_a_list_fails(self):
+        config = self._base_config()
+        config["application_repo"][0]["route_map"] = "not-a-list"
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(config)
+        self.assertIn("route_map", str(ctx.exception))
+
+    def test_route_map_entry_missing_key_fails(self):
+        config = self._base_config()
+        config["application_repo"][0]["route_map"] = [
+            {"path_pattern": "app/**", "route": "/home"},  # missing 'name'
+        ]
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(config)
+        self.assertIn("name", str(ctx.exception))
+
+
+# ===========================================================================
+# TestParseReleaseInfo — release info parsing
+# ===========================================================================
+
+
+class TestParseReleaseInfo(unittest.TestCase):
+    """Tests for parse_release_info."""
+
+    def test_returns_none_when_absent(self):
+        self.assertIsNone(parse_release_info({"patterns": []}))
+
+    def test_parses_release_info(self):
+        config = {
+            "release": {
+                "version": "2.4.0",
+                "affected_components": ["uui-grid", "uui-panel"],
+                "date": "2026-02-14",
+            }
+        }
+        release = parse_release_info(config)
+        self.assertIsNotNone(release)
+        self.assertEqual(release.version, "2.4.0")
+        self.assertEqual(release.affected_components, ("uui-grid", "uui-panel"))
+        self.assertEqual(release.release_date, "2026-02-14")
+
+    def test_returns_release_info_type(self):
+        config = {"release": {"version": "1.0.0", "affected_components": [], "date": "2026-01-01"}}
+        release = parse_release_info(config)
+        self.assertIsInstance(release, ReleaseInfo)
+
+
+# ===========================================================================
+# TestExtendedParseRepoConfigs — route_map and base_url parsing
+# ===========================================================================
+
+
+class TestExtendedParseRepoConfigs(unittest.TestCase):
+    """Tests for parse_repo_configs with extended fields."""
+
+    def test_parses_base_url(self):
+        raw = [
+            {
+                "source_path": "/tmp",
+                "replace_path": "/",
+                "report_name": "test",
+                "base_url": "https://example.com",
+            }
+        ]
+        configs = parse_repo_configs(raw)
+        self.assertEqual(configs[0].base_url, "https://example.com")
+
+    def test_base_url_defaults_to_none(self):
+        raw = [{"source_path": "/tmp", "replace_path": "/", "report_name": "test"}]
+        configs = parse_repo_configs(raw)
+        self.assertIsNone(configs[0].base_url)
+
+    def test_parses_route_map(self):
+        raw = [
+            {
+                "source_path": "/tmp",
+                "replace_path": "/",
+                "report_name": "test",
+                "route_map": [
+                    {"path_pattern": "app/**", "route": "/home", "name": "Home"},
+                ],
+            }
+        ]
+        configs = parse_repo_configs(raw)
+        self.assertEqual(len(configs[0].route_map), 1)
+        self.assertIsInstance(configs[0].route_map[0], RouteMapping)
+        self.assertEqual(configs[0].route_map[0].path_pattern, "app/**")
+
+    def test_route_map_defaults_to_empty(self):
+        raw = [{"source_path": "/tmp", "replace_path": "/", "report_name": "test"}]
+        configs = parse_repo_configs(raw)
+        self.assertEqual(configs[0].route_map, ())
+
+
+# ===========================================================================
+# TestWriteJsonReport — JSON report writing
+# ===========================================================================
+
+
+class TestWriteJsonReport(TempDirMixin, unittest.TestCase):
+    """Tests for write_json_report."""
+
+    def test_writes_valid_json(self):
+        report = ScanReport(
+            application="App",
+            base_url=None,
+            scan_date="02-15-2026",
+            release=None,
+            pages=(),
+        )
+        output = self.test_dir / "report.json"
+        write_json_report(report, output)
+        data = json.loads(output.read_text())
+        self.assertEqual(data["application"], "App")
+
+    def test_creates_parent_directories(self):
+        report = ScanReport("App", None, "02-15-2026", None, ())
+        output = self.test_dir / "deep" / "nested" / "report.json"
+        write_json_report(report, output)
+        self.assertTrue(output.exists())
+
+    def test_includes_nested_data(self):
+        report = ScanReport(
+            application="App",
+            base_url="https://example.com",
+            scan_date="02-15-2026",
+            release=ReleaseInfo("1.0.0", ("uui-grid",), "2026-01-01"),
+            pages=(
+                ResolvedPage(
+                    file_path="page.html",
+                    route="/home",
+                    page_name="Home",
+                    components=(ComponentMatch("<uui-grid", (5, 10)),),
+                ),
+            ),
+        )
+        output = self.test_dir / "report.json"
+        write_json_report(report, output)
+        data = json.loads(output.read_text())
+        self.assertEqual(data["release"]["version"], "1.0.0")
+        self.assertEqual(data["pages"][0]["route"], "/home")
+        self.assertEqual(data["pages"][0]["components"][0]["lines"], [5, 10])
+
+
+# ===========================================================================
+# TestMainIntegrationJsonOutput — JSON output from main()
+# ===========================================================================
+
+
+class TestMainIntegrationJsonOutput(TempDirMixin, unittest.TestCase):
+    """Tests for JSON output generated by main()."""
+
+    def test_produces_json_alongside_txt(self):
+        self._create_html("src/page.html", "<uui-button>")
+        config = {
+            "patterns": ["<uui-button"],
+            "application_repo": [
+                {
+                    "source_path": str(self.test_dir / "src"),
+                    "replace_path": str(self.test_dir) + "/",
+                    "report_name": "test_report",
+                }
+            ],
+        }
+        config_path = self._create_config(config)
+        output_dir = self.test_dir / "output"
+
+        exit_code = main(["-c", str(config_path), "-o", str(output_dir)])
+        self.assertEqual(exit_code, 0)
+
+        txt_reports = list(output_dir.glob("test_report-*.txt"))
+        json_reports = list(output_dir.glob("test_report-*.json"))
+        self.assertEqual(len(txt_reports), 1)
+        self.assertEqual(len(json_reports), 1)
+
+    def test_json_report_has_correct_structure(self):
+        self._create_html("src/page.html", '<uui-grid columns="3">')
+        config = {
+            "patterns": ["<uui-grid"],
+            "application_repo": [
+                {
+                    "source_path": str(self.test_dir / "src"),
+                    "replace_path": str(self.test_dir) + "/",
+                    "report_name": "json_test",
+                }
+            ],
+        }
+        config_path = self._create_config(config)
+        output_dir = self.test_dir / "output"
+
+        main(["-c", str(config_path), "-o", str(output_dir)])
+
+        json_file = next(iter(output_dir.glob("json_test-*.json")))
+        data = json.loads(json_file.read_text())
+        self.assertEqual(data["application"], "json_test")
+        self.assertEqual(len(data["pages"]), 1)
+        self.assertEqual(data["pages"][0]["components"][0]["tag"], "<uui-grid")
+
+    def test_json_report_with_route_map(self):
+        self._create_html("src/app/dashboard/page.html", "<uui-panel>")
+        config = {
+            "patterns": ["<uui-panel"],
+            "application_repo": [
+                {
+                    "source_path": str(self.test_dir / "src"),
+                    "replace_path": str(self.test_dir) + "/",
+                    "report_name": "route_test",
+                    "base_url": "https://staging.example.com",
+                    "route_map": [
+                        {
+                            "path_pattern": "src/app/dashboard/**",
+                            "route": "/dashboard",
+                            "name": "Dashboard",
+                        }
+                    ],
+                }
+            ],
+        }
+        config_path = self._create_config(config)
+        output_dir = self.test_dir / "output"
+
+        main(["-c", str(config_path), "-o", str(output_dir)])
+
+        json_file = next(iter(output_dir.glob("route_test-*.json")))
+        data = json.loads(json_file.read_text())
+        self.assertEqual(data["base_url"], "https://staging.example.com")
+        page = data["pages"][0]
+        self.assertEqual(page["route"], "/dashboard")
+        self.assertEqual(page["page_name"], "Dashboard")
+
+    def test_json_report_with_release_info(self):
+        self._create_html("src/page.html", "<uui-button>")
+        config = {
+            "patterns": ["<uui-button"],
+            "release": {
+                "version": "2.4.0",
+                "affected_components": ["uui-button"],
+                "date": "2026-02-14",
+            },
+            "application_repo": [
+                {
+                    "source_path": str(self.test_dir / "src"),
+                    "replace_path": str(self.test_dir) + "/",
+                    "report_name": "release_test",
+                }
+            ],
+        }
+        config_path = self._create_config(config)
+        output_dir = self.test_dir / "output"
+
+        main(["-c", str(config_path), "-o", str(output_dir)])
+
+        json_file = next(iter(output_dir.glob("release_test-*.json")))
+        data = json.loads(json_file.read_text())
+        self.assertEqual(data["release"]["version"], "2.4.0")
+        self.assertEqual(data["release"]["affected_components"], ["uui-button"])
+
+
+# ===========================================================================
+# TestNewDataStructures — new frozen dataclass contracts
+# ===========================================================================
+
+
+class TestNewDataStructures(unittest.TestCase):
+    """Tests for new immutable data structures."""
+
+    def test_route_mapping_is_frozen(self):
+        rm = RouteMapping(path_pattern="app/**", route="/home", name="Home")
+        with self.assertRaises(AttributeError):
+            rm.route = "/other"
+
+    def test_component_match_is_frozen(self):
+        cm = ComponentMatch(tag="<uui-grid", lines=(5, 10))
+        with self.assertRaises(AttributeError):
+            cm.tag = "other"
+
+    def test_resolved_page_is_frozen(self):
+        rp = ResolvedPage(file_path="page.html", route="/", page_name="Page", components=())
+        with self.assertRaises(AttributeError):
+            rp.route = "/other"
+
+    def test_release_info_is_frozen(self):
+        ri = ReleaseInfo(version="1.0.0", affected_components=(), release_date="2026-01-01")
+        with self.assertRaises(AttributeError):
+            ri.version = "2.0.0"
+
+    def test_scan_report_is_frozen(self):
+        sr = ScanReport(application="App", base_url=None, scan_date="", release=None, pages=())
+        with self.assertRaises(AttributeError):
+            sr.application = "Other"
+
+    def test_route_mapping_equality(self):
+        a = RouteMapping("app/**", "/home", "Home")
+        b = RouteMapping("app/**", "/home", "Home")
+        self.assertEqual(a, b)
+
+    def test_component_match_equality(self):
+        a = ComponentMatch("<uui-grid", (5,))
+        b = ComponentMatch("<uui-grid", (5,))
         self.assertEqual(a, b)
 
 

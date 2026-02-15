@@ -9,8 +9,9 @@ import os
 import re
 import sys
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -37,12 +38,61 @@ class FileResult:
 
 
 @dataclass(frozen=True)
+class RouteMapping:
+    """Maps a file path glob to an application route."""
+
+    path_pattern: str
+    route: str
+    name: str
+
+
+@dataclass(frozen=True)
 class RepoConfig:
     """Configuration for a single repository to scan."""
 
     source_path: Path
     replace_path: str
     report_name: str
+    base_url: str | None = None
+    route_map: tuple[RouteMapping, ...] = ()
+
+
+@dataclass(frozen=True)
+class ComponentMatch:
+    """A component found on a page with all its match locations."""
+
+    tag: str
+    lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class ResolvedPage:
+    """A scanned file with its route resolved."""
+
+    file_path: str
+    route: str | None
+    page_name: str | None
+    components: tuple[ComponentMatch, ...]
+
+
+@dataclass(frozen=True)
+class ReleaseInfo:
+    """Metadata about the library release being scanned for."""
+
+    version: str
+    affected_components: tuple[str, ...]
+    release_date: str
+
+
+@dataclass(frozen=True)
+class ScanReport:
+    """Complete structured scan output for one application."""
+
+    application: str
+    base_url: str | None
+    scan_date: str
+    release: ReleaseInfo | None
+    pages: tuple[ResolvedPage, ...]
 
 
 # ---------------------------------------------------------------------------
@@ -91,6 +141,85 @@ def format_report(results: list[FileResult], replace_path: str) -> str:
     """Format all results into a complete report string. Pure function."""
     sections = [format_file_result(r, replace_path) for r in results]
     return "\n".join(sections) + "\n" if sections else ""
+
+
+def resolve_route(
+    file_path: str,
+    replace_path: str,
+    route_map: tuple[RouteMapping, ...],
+) -> tuple[str | None, str | None]:
+    """Resolve a file path to an application route and page name.
+
+    Returns (route, page_name) or (None, None) if no route matches.
+    """
+    cleaned = file_path.replace(replace_path, "")
+    for mapping in route_map:
+        if fnmatch(cleaned, mapping.path_pattern):
+            return mapping.route, mapping.name
+    return None, None
+
+
+def build_resolved_pages(
+    results: list[FileResult],
+    replace_path: str,
+    route_map: tuple[RouteMapping, ...],
+) -> tuple[ResolvedPage, ...]:
+    """Convert FileResults into ResolvedPages with route info and grouped components."""
+    pages: list[ResolvedPage] = []
+    for file_result in results:
+        route, page_name = resolve_route(file_result.file_path, replace_path, route_map)
+        # Group matches by tag
+        tag_lines: dict[str, list[int]] = {}
+        for m in file_result.matches:
+            tag_lines.setdefault(m.pattern, []).append(m.line_num)
+        components = tuple(
+            ComponentMatch(tag=tag, lines=tuple(lines)) for tag, lines in tag_lines.items()
+        )
+        pages.append(
+            ResolvedPage(
+                file_path=file_result.file_path.replace(replace_path, ""),
+                route=route,
+                page_name=page_name,
+                components=components,
+            )
+        )
+    return tuple(pages)
+
+
+def build_scan_report(
+    application: str,
+    base_url: str | None,
+    scan_date: str,
+    release: ReleaseInfo | None,
+    results: list[FileResult],
+    replace_path: str,
+    route_map: tuple[RouteMapping, ...],
+) -> ScanReport:
+    """Build a structured ScanReport from scan results. Pure function."""
+    pages = build_resolved_pages(results, replace_path, route_map)
+    return ScanReport(
+        application=application,
+        base_url=base_url,
+        scan_date=scan_date,
+        release=release,
+        pages=pages,
+    )
+
+
+def _tuples_to_lists(obj: Any) -> Any:
+    """Recursively convert tuples to lists for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _tuples_to_lists(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_tuples_to_lists(item) for item in obj]
+    return obj
+
+
+def scan_report_to_dict(report: ScanReport) -> dict[str, Any]:
+    """Convert a ScanReport to a JSON-serializable dict."""
+    raw: dict[str, Any] = asdict(report)
+    result: dict[str, Any] = _tuples_to_lists(raw)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -153,24 +282,73 @@ def validate_config(config: dict[str, Any]) -> None:
         for key in ("source_path", "replace_path", "report_name"):
             if key not in repo:
                 raise ValueError(f"application_repo[{i}] missing required key: '{key}'")
+        if "route_map" in repo:
+            if not isinstance(repo["route_map"], list):
+                raise ValueError(f"application_repo[{i}] 'route_map' must be a list")
+            for j, route in enumerate(repo["route_map"]):
+                for key in ("path_pattern", "route", "name"):
+                    if key not in route:
+                        raise ValueError(
+                            f"application_repo[{i}].route_map[{j}] missing required key: '{key}'"
+                        )
+        if "base_url" in repo and not isinstance(repo["base_url"], str):
+            raise ValueError(f"application_repo[{i}] 'base_url' must be a string")
+    if "release" in config:
+        release = config["release"]
+        if not isinstance(release, dict):
+            raise ValueError("Config 'release' must be an object")
+        for key in ("version", "affected_components", "date"):
+            if key not in release:
+                raise ValueError(f"Config 'release' missing required key: '{key}'")
 
 
-def parse_repo_configs(raw_repos: list[dict[str, str]]) -> list[RepoConfig]:
+def parse_repo_configs(raw_repos: list[dict[str, Any]]) -> list[RepoConfig]:
     """Parse raw repo dicts into validated RepoConfig objects."""
-    return [
-        RepoConfig(
-            source_path=Path(r["source_path"]),
-            replace_path=r["replace_path"],
-            report_name=r["report_name"],
+    configs: list[RepoConfig] = []
+    for r in raw_repos:
+        route_map = tuple(
+            RouteMapping(
+                path_pattern=rm["path_pattern"],
+                route=rm["route"],
+                name=rm["name"],
+            )
+            for rm in r.get("route_map", [])
         )
-        for r in raw_repos
-    ]
+        configs.append(
+            RepoConfig(
+                source_path=Path(r["source_path"]),
+                replace_path=r["replace_path"],
+                report_name=r["report_name"],
+                base_url=r.get("base_url"),
+                route_map=route_map,
+            )
+        )
+    return configs
+
+
+def parse_release_info(config: dict[str, Any]) -> ReleaseInfo | None:
+    """Parse optional release info from config. Returns None if not present."""
+    raw = config.get("release")
+    if raw is None:
+        return None
+    return ReleaseInfo(
+        version=raw["version"],
+        affected_components=tuple(raw["affected_components"]),
+        release_date=raw["date"],
+    )
 
 
 def write_report(content: str, output_path: Path) -> None:
     """Write report content to file, creating parent directories as needed."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(content)
+
+
+def write_json_report(report: ScanReport, output_path: Path) -> None:
+    """Write structured JSON scan report to file."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    data = scan_report_to_dict(report)
+    output_path.write_text(json.dumps(data, indent=2) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +406,9 @@ def main(argv: list[str] | None = None) -> int:
 
     patterns = build_patterns(config["patterns"])
     repos = parse_repo_configs(config["application_repo"])
+    release = parse_release_info(config)
     today = date.today()
+    date_str = today.strftime("%m-%d-%Y")
 
     for repo in repos:
         if not repo.source_path.is_dir():
@@ -239,9 +419,22 @@ def main(argv: list[str] | None = None) -> int:
         results = scan_directory(repo.source_path, patterns)
 
         report = format_report(results, repo.replace_path)
-        output_path = args.output_dir / f"{repo.report_name}-{today.strftime('%m-%d-%Y')}.txt"
-        write_report(report, output_path)
-        log.info("Report written: %s", output_path)
+        txt_path = args.output_dir / f"{repo.report_name}-{date_str}.txt"
+        write_report(report, txt_path)
+        log.info("Report written: %s", txt_path)
+
+        scan_report = build_scan_report(
+            application=repo.report_name,
+            base_url=repo.base_url,
+            scan_date=date_str,
+            release=release,
+            results=results,
+            replace_path=repo.replace_path,
+            route_map=repo.route_map,
+        )
+        json_path = args.output_dir / f"{repo.report_name}-{date_str}.json"
+        write_json_report(scan_report, json_path)
+        log.info("JSON report written: %s", json_path)
 
     log.info("Search completed for all applications.")
     return 0

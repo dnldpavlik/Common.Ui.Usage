@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Common.Ui.Usage** is a Python CLI utility that scans HTML files across multiple Angular/web application repositories to track usage of shared UI component patterns (primarily `<uui-*>` custom elements). It generates timestamped text reports documenting where each component is used, helping monitor adoption of a shared UI component library across projects.
+**Common.Ui.Usage** is a Python CLI utility that scans HTML files across multiple Angular/web application repositories to track usage of shared UI component patterns (primarily `<uui-*>` custom elements). It generates timestamped text and JSON reports documenting where each component is used, helping monitor adoption of a shared UI component library across projects.
 
 ## Repository Structure
 
@@ -22,7 +22,7 @@ Common.Ui.Usage/
 ## Tech Stack
 
 - **Language:** Python 3.10+ (standard library only — zero runtime dependencies)
-- **Stdlib modules:** `argparse`, `collections.abc`, `dataclasses`, `datetime`, `json`, `logging`, `os`, `pathlib`, `re`, `sys`
+- **Stdlib modules:** `argparse`, `collections.abc`, `dataclasses`, `datetime`, `fnmatch`, `json`, `logging`, `os`, `pathlib`, `re`, `sys`
 - **Packaging:** `pyproject.toml` with `[project.scripts]` entry point
 - **Testing:** `unittest` (stdlib). Run with `make test` or `python3 -m unittest test_main -v`
 - **Linting:** `ruff` (check + format)
@@ -90,15 +90,24 @@ Tool configuration lives in `pyproject.toml`:
 
 ## Configuration (`config.json`)
 
-The configuration has two sections:
+The configuration has these sections:
 
-- **`patterns`**: Array of string patterns to search for (e.g., `"<uui-grid"`, `"<uui-panel"`). These are typically HTML custom element tag names from the shared UI library.
-- **`application_repo`**: Array of objects defining which repositories to scan, each with:
-  - `source_path`: Absolute path to the source directory to scan recursively
-  - `replace_path`: Path prefix to strip from output for readability
-  - `report_name`: Base name for the output report file
+- **`patterns`** (required): Array of string patterns to search for (e.g., `"<uui-grid"`, `"<uui-panel"`). These are typically HTML custom element tag names from the shared UI library.
+- **`application_repo`** (required): Array of objects defining which repositories to scan, each with:
+  - `source_path` (required): Absolute path to the source directory to scan recursively
+  - `replace_path` (required): Path prefix to strip from output for readability
+  - `report_name` (required): Base name for the output report file
+  - `base_url` (optional): Base URL of the deployed application (e.g., `"https://ao-portal-staging.example.com"`)
+  - `route_map` (optional): Array of route mapping objects, each with:
+    - `path_pattern`: Glob pattern matching file paths (after `replace_path` stripping)
+    - `route`: Application route URL path (e.g., `"/dashboard"`)
+    - `name`: Human-readable page name (e.g., `"Dashboard"`)
+- **`release`** (optional): Object describing the library release being scanned for:
+  - `version`: Release version string (e.g., `"2.4.0"`)
+  - `affected_components`: Array of component names affected by the release
+  - `date`: Release date string
 
-Config is validated at load time — missing keys or invalid structure produces a clear error message and exit code 1.
+Config is validated at load time — missing required keys or invalid structure produces a clear error message and exit code 1. Optional fields are validated only when present.
 
 Note: The configured paths currently use Windows-style paths (`C:/Projects/...`). These must be updated to match the local development environment.
 
@@ -108,16 +117,25 @@ Note: The configured paths currently use Windows-style paths (`C:/Projects/...`)
 
 - **SOLID / SRP**: Each function has a single responsibility — pattern building, line scanning, file scanning, directory walking, formatting, and file writing are all separate functions
 - **Functional core, imperative shell**: Pure functions (`scan_line`, `format_report`, `build_patterns`) contain all logic; I/O functions (`scan_file`, `write_report`, `find_html_files`) are thin wrappers
-- **Immutable data**: All data structures (`MatchResult`, `FileResult`, `RepoConfig`) are frozen dataclasses
+- **Immutable data**: All data structures (`MatchResult`, `FileResult`, `RepoConfig`, `RouteMapping`, `ComponentMatch`, `ResolvedPage`, `ReleaseInfo`, `ScanReport`) are frozen dataclasses
 - **Type safety**: Full type annotations throughout, enforced by `mypy --strict`
 - **Pipeline composition**: `main()` orchestrates a clear pipeline: config → patterns → scan → format → write
 
 ### Data Structures
 
 ```python
-MatchResult(line_num, excerpt, pattern)   # single match within a file
-FileResult(file_path, matches)            # all matches in one file
-RepoConfig(source_path, replace_path, report_name)  # one repo to scan
+# Core scanning
+MatchResult(line_num, excerpt, pattern)                      # single match within a file
+FileResult(file_path, matches)                               # all matches in one file
+RepoConfig(source_path, replace_path, report_name,           # one repo to scan
+           base_url=None, route_map=())                      #   with optional URL and routes
+
+# Structured output (Phase 1)
+RouteMapping(path_pattern, route, name)                      # file path glob → app route
+ComponentMatch(tag, lines)                                   # component with all line locations
+ResolvedPage(file_path, route, page_name, components)        # scanned file with route info
+ReleaseInfo(version, affected_components, release_date)      # library release metadata
+ScanReport(application, base_url, scan_date, release, pages) # complete structured output
 ```
 
 All are `@dataclass(frozen=True)` — immutable after creation.
@@ -129,10 +147,12 @@ All are `@dataclass(frozen=True)` — immutable after creation.
 | **Pattern building** | `build_pattern()`, `build_patterns()` | No |
 | **Line scanning** | `scan_line()` | No |
 | **Formatting** | `format_file_result()`, `format_report()` | No |
-| **Config** | `validate_config()`, `parse_repo_configs()` | No |
+| **Route resolution** | `resolve_route()`, `build_resolved_pages()` | No |
+| **Report building** | `build_scan_report()`, `scan_report_to_dict()` | No |
+| **Config** | `validate_config()`, `parse_repo_configs()`, `parse_release_info()` | No |
 | **File scanning** | `find_html_files()`, `scan_file()`, `scan_directory()` | Yes |
 | **Config loading** | `load_config()` | Yes |
-| **Report writing** | `write_report()` | Yes |
+| **Report writing** | `write_report()`, `write_json_report()` | Yes |
 | **CLI** | `parse_args()`, `main()`, `cli()` | Yes |
 
 ### Pattern Matching
@@ -141,22 +161,26 @@ All are `@dataclass(frozen=True)` — immutable after creation.
 - Patterns are stored as tuples of `(original_string, compiled_regex)`
 
 ### Report Generation
-- Reports are written to `{output_dir}/{report_name}-{MM-DD-YYYY}.txt`
+- Text reports are written to `{output_dir}/{report_name}-{MM-DD-YYYY}.txt`
+- JSON reports are written to `{output_dir}/{report_name}-{MM-DD-YYYY}.json`
 - Output directories are created automatically (`mkdir -p` equivalent)
-- Results are grouped by file, showing line numbers and matched excerpts
+- Text results are grouped by file, showing line numbers and matched excerpts
+- JSON reports contain structured data: pages with resolved routes, components grouped by tag with line numbers, and optional release metadata
 - The `replace_path` config value strips absolute path prefixes for cleaner output
+- Route resolution uses `fnmatch` glob patterns to map file paths to application routes
 
 ### Code Flow
 1. Parse CLI arguments (`argparse`)
-2. Load and validate `config.json`
+2. Load and validate `config.json` (including optional `release`, `base_url`, `route_map`)
 3. Build compiled regex patterns from configured pattern strings
-4. For each configured application repository:
+4. Parse optional release info
+5. For each configured application repository:
    - Skip with warning if source directory doesn't exist
    - Walk the directory tree, yielding `.html` files (generator)
    - Scan each file line-by-line against all patterns
-   - Format results into report string
-   - Write report to dated output file
-5. Return exit code 0
+   - Format results into text report string and write to `.txt` file
+   - Build structured `ScanReport` with route resolution and write to `.json` file
+6. Return exit code 0
 
 ## Known Issues
 
@@ -189,7 +213,7 @@ make test
 python3 -m unittest test_main -v
 ```
 
-### Test Organization (81 tests across 16 classes)
+### Test Organization (126 tests across 25 classes)
 
 | Class | Tests | What it covers |
 |---|---|---|
@@ -209,6 +233,16 @@ python3 -m unittest test_main -v
 | `TestRealisticPage` | 3 | 18-line HTML page: exact line numbers at data/format/pipeline layers |
 | `TestMainIntegration` | 5 | End-to-end through `main()`: success, errors, missing dirs |
 | `TestDataStructures` | 4 | Frozen dataclass contracts: immutability, equality |
+| `TestRouteResolution` | 5 | Route resolution: glob matching, first-match-wins, no-match |
+| `TestBuildResolvedPages` | 5 | Page building: tag grouping, line grouping, path stripping, route resolution |
+| `TestBuildScanReport` | 3 | Full report building: structure, release info, empty results |
+| `TestScanReportToDict` | 3 | JSON serialization: dict output, nested structures, round-trip |
+| `TestExtendedConfigValidation` | 8 | Extended validation: release, base_url, route_map fields |
+| `TestParseReleaseInfo` | 3 | Release info parsing: absent, present, type check |
+| `TestExtendedParseRepoConfigs` | 4 | Extended repo config: base_url, route_map parsing |
+| `TestWriteJsonReport` | 3 | JSON report writing: valid JSON, parent dirs, nested data |
+| `TestMainIntegrationJsonOutput` | 4 | JSON output from main(): alongside txt, structure, routes, release |
+| `TestNewDataStructures` | 7 | New frozen dataclass contracts: immutability, equality |
 
 Key regression guards:
 - `test_line_numbers_not_inflated_by_pattern_count` — catches the per-pattern increment bug

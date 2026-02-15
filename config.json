@@ -1,4 +1,9 @@
 {
+    "release": {
+        "version": "2.4.0",
+        "affected_components": ["uui-grid", "uui-panel", "uui-button"],
+        "date": "2026-02-14"
+    },
     "patterns": [
         "<uui-grid",
         "<uui-what-is-new-modal",
@@ -29,7 +34,20 @@
         {
             "source_path": "C:/Projects/AO.MDM/AppLib/AO.Portal.UI/app/src",
             "replace_path": "C:/Projects/AO.MDM/",
-            "report_name": "AO.Portal_Usage_Results"
+            "report_name": "AO.Portal_Usage_Results",
+            "base_url": "https://ao-portal-staging.example.com",
+            "route_map": [
+                {
+                    "path_pattern": "AppLib/AO.Portal.UI/app/src/app/dashboard/**",
+                    "route": "/dashboard",
+                    "name": "Dashboard"
+                },
+                {
+                    "path_pattern": "AppLib/AO.Portal.UI/app/src/app/devices/**",
+                    "route": "/devices",
+                    "name": "Devices"
+                }
+            ]
         },
         {
             "source_path": "C:/Projects/AO.UHE/dev/Aclara.UHE.UI/src",
