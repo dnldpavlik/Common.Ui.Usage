@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from main import (
+from common_ui_usage import (
     NEGATIVE_LOOKAHEAD,
     CompiledPattern,
     ComponentMatch,

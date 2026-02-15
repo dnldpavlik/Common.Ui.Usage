@@ -8,8 +8,18 @@
 
 ```
 Common.Ui.Usage/
-├── main.py                       # CLI app — data structures, pure functions, I/O, argparse
-├── test_main.py                  # Unit tests (unittest, 81 tests)
+├── common_ui_usage/              # Main package
+│   ├── __init__.py               # Public API — re-exports all modules
+│   ├── models.py                 # Frozen dataclasses (10 data structures)
+│   ├── patterns.py               # Pattern building (raw string → compiled regex)
+│   ├── scanner.py                # Line/file/directory scanning
+│   ├── formatting.py             # Text report formatting (pure)
+│   ├── routing.py                # Route resolution and page building (pure)
+│   ├── reports.py                # Structured report building + JSON writing
+│   ├── config.py                 # Config validation, parsing, and loading
+│   └── cli.py                    # CLI argument parsing + main orchestration
+├── main.py                       # Thin entry point (imports from package)
+├── test_main.py                  # Unit tests (unittest, 131 tests)
 ├── config.json                   # Patterns to search and repositories to scan
 ├── pyproject.toml                # Project metadata, CLI entry point, tool config (ruff, mypy)
 ├── Makefile                      # Dev task runner (make check, make test, make lint, etc.)
@@ -73,7 +83,7 @@ The script returns exit code `0` on success, `1` on config errors.
 | `make lint` | Run ruff linter (`ruff check .`) |
 | `make format` | Check formatting (`ruff format --check .`) |
 | `make format-fix` | Auto-fix formatting (`ruff format .`) |
-| `make typecheck` | Run mypy strict (`mypy --strict main.py`) |
+| `make typecheck` | Run mypy strict (`mypy --strict common_ui_usage/`) |
 
 ## Dev Tool Setup
 
@@ -115,22 +125,40 @@ Note: The configured paths currently use Windows-style paths (`C:/Projects/...`)
 
 ### Design Principles
 
-- **SOLID / SRP**: Each function has a single responsibility — pattern building, line scanning, file scanning, directory walking, formatting, and file writing are all separate functions
+- **SOLID / SRP**: Each module has a single responsibility — models, patterns, scanning, formatting, routing, reports, config, and CLI are all in separate files
 - **Functional core, imperative shell**: Pure functions (`scan_line`, `format_report`, `build_patterns`) contain all logic; I/O functions (`scan_file`, `write_report`, `find_html_files`) are thin wrappers
 - **Immutable data**: All data structures (`MatchResult`, `FileResult`, `RepoConfig`, `RouteMapping`, `ComponentMatch`, `ResolvedPage`, `ReleaseInfo`, `ScanReport`) are frozen dataclasses
 - **Type safety**: Full type annotations throughout, enforced by `mypy --strict`
-- **Pipeline composition**: `main()` orchestrates a clear pipeline: config → patterns → scan → format → write
+- **Pipeline composition**: `main()` orchestrates a clear pipeline: config → patterns → scan → `process_repo()` → write
+
+### Package Modules
+
+| Module | Responsibility | I/O? |
+|---|---|---|
+| `models.py` | All frozen dataclasses (10 data structures) | No |
+| `patterns.py` | Pattern compilation (`build_pattern`, `build_patterns`) | No |
+| `scanner.py` | Line scanning (`scan_line`) + file/directory discovery and scanning | Mixed |
+| `formatting.py` | Text report formatting (`format_file_result`, `format_report`) | No |
+| `routing.py` | Route resolution, match grouping, page building | No |
+| `reports.py` | Structured report building + JSON serialization + file writing | Mixed |
+| `config.py` | Config validation, parsing, and loading | Mixed |
+| `cli.py` | CLI args, `process_repo()`, `main()`, `cli()` | Yes |
 
 ### Data Structures
 
+All defined in `common_ui_usage/models.py`:
+
 ```python
+# Pattern compilation
+CompiledPattern(original, regex)                             # raw string + compiled regex
+
 # Core scanning
 MatchResult(line_num, excerpt, pattern)                      # single match within a file
 FileResult(file_path, matches)                               # all matches in one file
 RepoConfig(source_path, replace_path, report_name,           # one repo to scan
            base_url=None, route_map=())                      #   with optional URL and routes
 
-# Structured output (Phase 1)
+# Structured output
 RouteMapping(path_pattern, route, name)                      # file path glob → app route
 ComponentMatch(tag, lines)                                   # component with all line locations
 ResolvedPage(file_path, route, page_name, components)        # scanned file with route info
@@ -140,25 +168,10 @@ ScanReport(application, base_url, scan_date, release, pages) # complete structur
 
 All are `@dataclass(frozen=True)` — immutable after creation.
 
-### Function Layers
-
-| Layer | Functions | I/O? |
-|---|---|---|
-| **Pattern building** | `build_pattern()`, `build_patterns()` | No |
-| **Line scanning** | `scan_line()` | No |
-| **Formatting** | `format_file_result()`, `format_report()` | No |
-| **Route resolution** | `resolve_route()`, `build_resolved_pages()` | No |
-| **Report building** | `build_scan_report()`, `scan_report_to_dict()` | No |
-| **Config** | `validate_config()`, `parse_repo_configs()`, `parse_release_info()` | No |
-| **File scanning** | `find_html_files()`, `scan_file()`, `scan_directory()` | Yes |
-| **Config loading** | `load_config()` | Yes |
-| **Report writing** | `write_report()`, `write_json_report()` | Yes |
-| **CLI** | `parse_args()`, `main()`, `cli()` | Yes |
-
 ### Pattern Matching
 - Patterns starting with `<` get a negative lookahead regex (`(?![!?-])`) appended to avoid matching extended tag names (e.g., `<uui-menu` won't match `<uui-menu-item`)
 - All patterns are escaped with `re.escape()` and compiled to `re.Pattern` objects
-- Patterns are stored as tuples of `(original_string, compiled_regex)`
+- Patterns are stored as `CompiledPattern` frozen dataclasses with `original` and `regex` fields
 
 ### Report Generation
 - Text reports are written to `{output_dir}/{report_name}-{MM-DD-YYYY}.txt`
@@ -170,16 +183,15 @@ All are `@dataclass(frozen=True)` — immutable after creation.
 - Route resolution uses `fnmatch` glob patterns to map file paths to application routes
 
 ### Code Flow
-1. Parse CLI arguments (`argparse`)
-2. Load and validate `config.json` (including optional `release`, `base_url`, `route_map`)
-3. Build compiled regex patterns from configured pattern strings
-4. Parse optional release info
-5. For each configured application repository:
+1. Parse CLI arguments (`argparse`) — `cli.py:parse_args()`
+2. Load and validate `config.json` — `config.py:load_config()`
+3. Build compiled regex patterns — `patterns.py:build_patterns()`
+4. Parse optional release info — `config.py:parse_release_info()`
+5. For each configured application repository, delegate to `cli.py:process_repo()`:
    - Skip with warning if source directory doesn't exist
-   - Walk the directory tree, yielding `.html` files (generator)
-   - Scan each file line-by-line against all patterns
-   - Format results into text report string and write to `.txt` file
-   - Build structured `ScanReport` with route resolution and write to `.json` file
+   - Scan directory tree for HTML files with pattern matches — `scanner.py`
+   - Format text report and write to `.txt` file — `formatting.py` + `reports.py`
+   - Build structured `ScanReport` and write to `.json` file — `reports.py`
 6. Return exit code 0
 
 ## Known Issues
@@ -199,6 +211,7 @@ All previously documented bugs have been fixed:
 - **Logging:** `logging` module, not `print()`
 - **Paths:** `pathlib.Path`, not string concatenation
 - **Formatting:** Enforced by `ruff format` (100-char line length)
+- **Imports:** All public API re-exported from `common_ui_usage/__init__.py`; tests import from `common_ui_usage`
 - **Commit messages:** Use conventional commit prefixes (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`)
 - **Git workflow:** Development on feature branches, `master` as main branch
 - **Quality gate:** `make check` must pass before committing (enforced by pre-commit hooks)
@@ -213,7 +226,7 @@ make test
 python3 -m unittest test_main -v
 ```
 
-### Test Organization (126 tests across 25 classes)
+### Test Organization (131 tests across 27 classes)
 
 | Class | Tests | What it covers |
 |---|---|---|
@@ -234,6 +247,7 @@ python3 -m unittest test_main -v
 | `TestMainIntegration` | 5 | End-to-end through `main()`: success, errors, missing dirs |
 | `TestDataStructures` | 4 | Frozen dataclass contracts: immutability, equality |
 | `TestRouteResolution` | 5 | Route resolution: glob matching, first-match-wins, no-match |
+| `TestGroupMatchesByTag` | 4 | Match grouping: by pattern, line collection, empty, single |
 | `TestBuildResolvedPages` | 5 | Page building: tag grouping, line grouping, path stripping, route resolution |
 | `TestBuildScanReport` | 3 | Full report building: structure, release info, empty results |
 | `TestScanReportToDict` | 3 | JSON serialization: dict output, nested structures, round-trip |
@@ -242,7 +256,7 @@ python3 -m unittest test_main -v
 | `TestExtendedParseRepoConfigs` | 4 | Extended repo config: base_url, route_map parsing |
 | `TestWriteJsonReport` | 3 | JSON report writing: valid JSON, parent dirs, nested data |
 | `TestMainIntegrationJsonOutput` | 4 | JSON output from main(): alongside txt, structure, routes, release |
-| `TestNewDataStructures` | 7 | New frozen dataclass contracts: immutability, equality |
+| `TestNewDataStructures` | 8 | New frozen dataclass contracts: immutability, equality |
 
 Key regression guards:
 - `test_line_numbers_not_inflated_by_pattern_count` — catches the per-pattern increment bug
@@ -251,13 +265,15 @@ Key regression guards:
 
 ## Development Guidelines
 
-- Keep all configuration in `config.json` rather than hardcoding values in `main.py`
+- Keep all configuration in `config.json` rather than hardcoding values
 - The `Reports/` directory is gitignored — do not commit generated reports
 - When adding new UI component patterns, add them to the `patterns` array in `config.json`
 - When adding new application repositories to scan, add entries to the `application_repo` array in `config.json`
 - Keep pure functions pure — no I/O, no side effects, no logging
 - Keep I/O functions thin — delegate logic to pure functions
-- Use frozen dataclasses for any new data structures
+- Use frozen dataclasses for any new data structures (add to `models.py`)
 - Add type annotations to all new functions
+- New functionality goes in the appropriate module — don't add to `main.py` or `cli.py` unless it's orchestration
+- Export new public API from `common_ui_usage/__init__.py`
 - Run `make check` before committing changes
 - When adding new functionality, add corresponding tests at the appropriate layer

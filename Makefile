@@ -13,7 +13,7 @@ format-fix:  ## Auto-fix formatting
 	ruff format .
 
 typecheck:  ## Run mypy strict type checking
-	mypy --strict main.py
+	mypy --strict common_ui_usage/
 
 check: lint format typecheck test  ## Run all checks (lint, format, typecheck, test)
 
