@@ -11,6 +11,7 @@ from pathlib import Path
 
 from main import (
     NEGATIVE_LOOKAHEAD,
+    CompiledPattern,
     ComponentMatch,
     FileResult,
     MatchResult,
@@ -26,6 +27,7 @@ from main import (
     find_html_files,
     format_file_result,
     format_report,
+    group_matches_by_tag,
     load_config,
     main,
     parse_args,
@@ -75,31 +77,32 @@ class TempDirMixin:
 class TestBuildPattern(unittest.TestCase):
     """Tests for build_pattern (single pattern)."""
 
-    def test_tag_pattern_returns_compiled_regex(self):
-        original, compiled = build_pattern("<uui-button")
-        self.assertEqual(original, "<uui-button")
-        self.assertIsInstance(compiled, re.Pattern)
+    def test_tag_pattern_returns_compiled_pattern(self):
+        cp = build_pattern("<uui-button")
+        self.assertIsInstance(cp, CompiledPattern)
+        self.assertEqual(cp.original, "<uui-button")
+        self.assertIsInstance(cp.regex, re.Pattern)
 
     def test_tag_pattern_includes_negative_lookahead(self):
-        _, compiled = build_pattern("<uui-button")
-        self.assertIn(NEGATIVE_LOOKAHEAD, compiled.pattern)
+        cp = build_pattern("<uui-button")
+        self.assertIn(NEGATIVE_LOOKAHEAD, cp.regex.pattern)
 
     def test_non_tag_pattern_no_lookahead(self):
-        _, compiled = build_pattern("someDirective")
-        self.assertNotIn(NEGATIVE_LOOKAHEAD, compiled.pattern)
+        cp = build_pattern("someDirective")
+        self.assertNotIn(NEGATIVE_LOOKAHEAD, cp.regex.pattern)
 
     def test_special_chars_escaped(self):
-        _, compiled = build_pattern("<uui-grid")
-        self.assertIn(r"\-", compiled.pattern)
+        cp = build_pattern("<uui-grid")
+        self.assertIn(r"\-", cp.regex.pattern)
 
     def test_tag_matches_opening_tag(self):
-        _, compiled = build_pattern("<uui-button")
-        self.assertIsNotNone(compiled.search('<uui-button label="Save">'))
+        cp = build_pattern("<uui-button")
+        self.assertIsNotNone(cp.regex.search('<uui-button label="Save">'))
 
     def test_tag_does_not_match_extended_name(self):
         """Negative lookahead prevents <uui-button matching <uui-button-extended."""
-        _, compiled = build_pattern("<uui-button")
-        self.assertIsNone(compiled.search("<uui-button-extended>"))
+        cp = build_pattern("<uui-button")
+        self.assertIsNone(cp.regex.search("<uui-button-extended>"))
 
 
 # ===========================================================================
@@ -117,7 +120,7 @@ class TestBuildPatterns(unittest.TestCase):
     def test_preserves_order(self):
         raw = ["<uui-grid", "directive", "<uui-panel"]
         patterns = build_patterns(raw)
-        originals = [p[0] for p in patterns]
+        originals = [p.original for p in patterns]
         self.assertEqual(originals, raw)
 
     def test_empty_list(self):
@@ -568,8 +571,9 @@ class TestConfigLoading(unittest.TestCase):
     def test_all_patterns_compile(self):
         config = load_config(Path("config.json"))
         patterns = build_patterns(config["patterns"])
-        for _original, compiled in patterns:
-            self.assertIsInstance(compiled, re.Pattern)
+        for cp in patterns:
+            self.assertIsInstance(cp, CompiledPattern)
+            self.assertIsInstance(cp.regex, re.Pattern)
 
     def test_repo_entries_have_required_fields(self):
         config = load_config(Path("config.json"))
@@ -784,6 +788,43 @@ class TestRouteResolution(unittest.TestCase):
 
 
 # ===========================================================================
+# TestGroupMatchesByTag — match grouping
+# ===========================================================================
+
+
+class TestGroupMatchesByTag(unittest.TestCase):
+    """Tests for group_matches_by_tag — pure function."""
+
+    def test_groups_by_pattern(self):
+        matches = (
+            MatchResult(5, "<uui-grid", "<uui-grid"),
+            MatchResult(10, "<uui-grid", "<uui-grid"),
+            MatchResult(7, "<uui-panel", "<uui-panel"),
+        )
+        components = group_matches_by_tag(matches)
+        tags = {c.tag for c in components}
+        self.assertEqual(tags, {"<uui-grid", "<uui-panel"})
+
+    def test_collects_line_numbers(self):
+        matches = (
+            MatchResult(5, "<uui-grid", "<uui-grid"),
+            MatchResult(12, "<uui-grid", "<uui-grid"),
+        )
+        components = group_matches_by_tag(matches)
+        self.assertEqual(components[0].lines, (5, 12))
+
+    def test_empty_matches(self):
+        self.assertEqual(group_matches_by_tag(()), ())
+
+    def test_single_match(self):
+        matches = (MatchResult(1, "<uui-button", "<uui-button"),)
+        components = group_matches_by_tag(matches)
+        self.assertEqual(len(components), 1)
+        self.assertEqual(components[0].tag, "<uui-button")
+        self.assertEqual(components[0].lines, (1,))
+
+
+# ===========================================================================
 # TestBuildResolvedPages — structured page building
 # ===========================================================================
 
@@ -855,16 +896,14 @@ class TestBuildScanReport(unittest.TestCase):
     """Tests for build_scan_report — pure function."""
 
     def test_builds_report_structure(self):
-        results = [FileResult("/src/page.html", (MatchResult(1, "<uui-grid", "<uui-grid"),))]
-        report = build_scan_report(
-            application="TestApp",
-            base_url="https://test.example.com",
-            scan_date="02-15-2026",
-            release=None,
-            results=results,
+        repo = RepoConfig(
+            source_path=Path("/src"),
             replace_path="/src/",
-            route_map=(),
+            report_name="TestApp",
+            base_url="https://test.example.com",
         )
+        results = [FileResult("/src/page.html", (MatchResult(1, "<uui-grid", "<uui-grid"),))]
+        report = build_scan_report(repo=repo, scan_date="02-15-2026", release=None, results=results)
         self.assertEqual(report.application, "TestApp")
         self.assertEqual(report.base_url, "https://test.example.com")
         self.assertEqual(report.scan_date, "02-15-2026")
@@ -872,29 +911,15 @@ class TestBuildScanReport(unittest.TestCase):
         self.assertEqual(len(report.pages), 1)
 
     def test_includes_release_info(self):
+        repo = RepoConfig(source_path=Path("/tmp"), replace_path="", report_name="App")
         release = ReleaseInfo("2.4.0", ("uui-grid",), "2026-02-14")
-        report = build_scan_report(
-            application="App",
-            base_url=None,
-            scan_date="02-15-2026",
-            release=release,
-            results=[],
-            replace_path="",
-            route_map=(),
-        )
+        report = build_scan_report(repo=repo, scan_date="02-15-2026", release=release, results=[])
         self.assertIsNotNone(report.release)
         self.assertEqual(report.release.version, "2.4.0")
 
     def test_empty_results_produces_empty_pages(self):
-        report = build_scan_report(
-            application="App",
-            base_url=None,
-            scan_date="02-15-2026",
-            release=None,
-            results=[],
-            replace_path="",
-            route_map=(),
-        )
+        repo = RepoConfig(source_path=Path("/tmp"), replace_path="", report_name="App")
+        report = build_scan_report(repo=repo, scan_date="02-15-2026", release=None, results=[])
         self.assertEqual(report.pages, ())
 
 
@@ -1288,6 +1313,11 @@ class TestMainIntegrationJsonOutput(TempDirMixin, unittest.TestCase):
 
 class TestNewDataStructures(unittest.TestCase):
     """Tests for new immutable data structures."""
+
+    def test_compiled_pattern_is_frozen(self):
+        cp = build_pattern("<uui-button")
+        with self.assertRaises(AttributeError):
+            cp.original = "other"
 
     def test_route_mapping_is_frozen(self):
         rm = RouteMapping(path_pattern="app/**", route="/home", name="Home")

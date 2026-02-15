@@ -21,6 +21,14 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class CompiledPattern:
+    """A search pattern with its original string and compiled regex."""
+
+    original: str
+    regex: re.Pattern[str]
+
+
+@dataclass(frozen=True)
 class MatchResult:
     """A single pattern match within a file."""
 
@@ -102,13 +110,13 @@ class ScanReport:
 NEGATIVE_LOOKAHEAD = r"(?![!?-])"
 
 
-def build_pattern(raw: str) -> tuple[str, re.Pattern[str]]:
-    """Build a single (original, compiled_regex) tuple from a raw pattern string."""
+def build_pattern(raw: str) -> CompiledPattern:
+    """Build a CompiledPattern from a raw pattern string."""
     regex = re.escape(raw) + NEGATIVE_LOOKAHEAD if raw.startswith("<") else re.escape(raw)
-    return (raw, re.compile(regex))
+    return CompiledPattern(original=raw, regex=re.compile(regex))
 
 
-def build_patterns(raw_patterns: list[str]) -> list[tuple[str, re.Pattern[str]]]:
+def build_patterns(raw_patterns: list[str]) -> list[CompiledPattern]:
     """Build compiled regex patterns from raw pattern strings."""
     return [build_pattern(p) for p in raw_patterns]
 
@@ -116,15 +124,15 @@ def build_patterns(raw_patterns: list[str]) -> list[tuple[str, re.Pattern[str]]]
 def scan_line(
     line: str,
     line_num: int,
-    patterns: list[tuple[str, re.Pattern[str]]],
+    patterns: list[CompiledPattern],
 ) -> list[MatchResult]:
     """Scan a single line against all patterns. Pure function."""
     results: list[MatchResult] = []
-    for original, compiled in patterns:
-        for match in compiled.finditer(line):
+    for cp in patterns:
+        for match in cp.regex.finditer(line):
             start, end = match.span()
             excerpt = line[start:end].strip()
-            results.append(MatchResult(line_num=line_num, excerpt=excerpt, pattern=original))
+            results.append(MatchResult(line_num=line_num, excerpt=excerpt, pattern=cp.original))
     return results
 
 
@@ -159,47 +167,49 @@ def resolve_route(
     return None, None
 
 
+def group_matches_by_tag(matches: tuple[MatchResult, ...]) -> tuple[ComponentMatch, ...]:
+    """Group flat match results into ComponentMatches keyed by tag. Pure function."""
+    tag_lines: dict[str, list[int]] = {}
+    for m in matches:
+        tag_lines.setdefault(m.pattern, []).append(m.line_num)
+    return tuple(ComponentMatch(tag=tag, lines=tuple(lines)) for tag, lines in tag_lines.items())
+
+
+def build_resolved_page(
+    file_result: FileResult,
+    replace_path: str,
+    route_map: tuple[RouteMapping, ...],
+) -> ResolvedPage:
+    """Convert a single FileResult into a ResolvedPage. Pure function."""
+    route, page_name = resolve_route(file_result.file_path, replace_path, route_map)
+    return ResolvedPage(
+        file_path=file_result.file_path.replace(replace_path, ""),
+        route=route,
+        page_name=page_name,
+        components=group_matches_by_tag(file_result.matches),
+    )
+
+
 def build_resolved_pages(
     results: list[FileResult],
     replace_path: str,
     route_map: tuple[RouteMapping, ...],
 ) -> tuple[ResolvedPage, ...]:
     """Convert FileResults into ResolvedPages with route info and grouped components."""
-    pages: list[ResolvedPage] = []
-    for file_result in results:
-        route, page_name = resolve_route(file_result.file_path, replace_path, route_map)
-        # Group matches by tag
-        tag_lines: dict[str, list[int]] = {}
-        for m in file_result.matches:
-            tag_lines.setdefault(m.pattern, []).append(m.line_num)
-        components = tuple(
-            ComponentMatch(tag=tag, lines=tuple(lines)) for tag, lines in tag_lines.items()
-        )
-        pages.append(
-            ResolvedPage(
-                file_path=file_result.file_path.replace(replace_path, ""),
-                route=route,
-                page_name=page_name,
-                components=components,
-            )
-        )
-    return tuple(pages)
+    return tuple(build_resolved_page(fr, replace_path, route_map) for fr in results)
 
 
 def build_scan_report(
-    application: str,
-    base_url: str | None,
+    repo: RepoConfig,
     scan_date: str,
     release: ReleaseInfo | None,
     results: list[FileResult],
-    replace_path: str,
-    route_map: tuple[RouteMapping, ...],
 ) -> ScanReport:
     """Build a structured ScanReport from scan results. Pure function."""
-    pages = build_resolved_pages(results, replace_path, route_map)
+    pages = build_resolved_pages(results, repo.replace_path, repo.route_map)
     return ScanReport(
-        application=application,
-        base_url=base_url,
+        application=repo.report_name,
+        base_url=repo.base_url,
         scan_date=scan_date,
         release=release,
         pages=pages,
@@ -223,49 +233,40 @@ def scan_report_to_dict(report: ScanReport) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# I/O functions
+# Config validation and parsing (pure — no I/O)
 # ---------------------------------------------------------------------------
 
 
-def find_html_files(directory: Path) -> Iterator[Path]:
-    """Yield all .html files under directory, recursively."""
-    for root, _, files in os.walk(directory):
-        for filename in sorted(files):
-            if filename.endswith(".html"):
-                yield Path(root) / filename
+def _validate_route_map(route_map: Any, repo_index: int) -> None:
+    """Validate a single repo's route_map structure."""
+    if not isinstance(route_map, list):
+        raise ValueError(f"application_repo[{repo_index}] 'route_map' must be a list")
+    for j, route in enumerate(route_map):
+        for key in ("path_pattern", "route", "name"):
+            if key not in route:
+                raise ValueError(
+                    f"application_repo[{repo_index}].route_map[{j}] missing required key: '{key}'"
+                )
 
 
-def scan_file(
-    file_path: Path,
-    patterns: list[tuple[str, re.Pattern[str]]],
-) -> FileResult:
-    """Scan a single HTML file for pattern matches."""
-    matches: list[MatchResult] = []
-    with open(file_path) as f:
-        for line_num, line in enumerate(f, start=1):
-            matches.extend(scan_line(line, line_num, patterns))
-    return FileResult(file_path=str(file_path), matches=tuple(matches))
+def _validate_repo(repo: dict[str, Any], index: int) -> None:
+    """Validate a single application_repo entry."""
+    for key in ("source_path", "replace_path", "report_name"):
+        if key not in repo:
+            raise ValueError(f"application_repo[{index}] missing required key: '{key}'")
+    if "route_map" in repo:
+        _validate_route_map(repo["route_map"], index)
+    if "base_url" in repo and not isinstance(repo["base_url"], str):
+        raise ValueError(f"application_repo[{index}] 'base_url' must be a string")
 
 
-def scan_directory(
-    directory: Path,
-    patterns: list[tuple[str, re.Pattern[str]]],
-) -> list[FileResult]:
-    """Scan all HTML files in directory tree. Returns only files with matches."""
-    results: list[FileResult] = []
-    for html_file in find_html_files(directory):
-        result = scan_file(html_file, patterns)
-        if result.matches:
-            results.append(result)
-    return results
-
-
-def load_config(config_path: Path) -> dict[str, Any]:
-    """Load and validate configuration from JSON file."""
-    with open(config_path) as f:
-        config: dict[str, Any] = json.load(f)
-    validate_config(config)
-    return config
+def _validate_release(release: Any) -> None:
+    """Validate the optional release config block."""
+    if not isinstance(release, dict):
+        raise ValueError("Config 'release' must be an object")
+    for key in ("version", "affected_components", "date"):
+        if key not in release:
+            raise ValueError(f"Config 'release' missing required key: '{key}'")
 
 
 def validate_config(config: dict[str, Any]) -> None:
@@ -279,27 +280,9 @@ def validate_config(config: dict[str, Any]) -> None:
     if not isinstance(config["application_repo"], list):
         raise ValueError("Config 'application_repo' must be a list")
     for i, repo in enumerate(config["application_repo"]):
-        for key in ("source_path", "replace_path", "report_name"):
-            if key not in repo:
-                raise ValueError(f"application_repo[{i}] missing required key: '{key}'")
-        if "route_map" in repo:
-            if not isinstance(repo["route_map"], list):
-                raise ValueError(f"application_repo[{i}] 'route_map' must be a list")
-            for j, route in enumerate(repo["route_map"]):
-                for key in ("path_pattern", "route", "name"):
-                    if key not in route:
-                        raise ValueError(
-                            f"application_repo[{i}].route_map[{j}] missing required key: '{key}'"
-                        )
-        if "base_url" in repo and not isinstance(repo["base_url"], str):
-            raise ValueError(f"application_repo[{i}] 'base_url' must be a string")
+        _validate_repo(repo, i)
     if "release" in config:
-        release = config["release"]
-        if not isinstance(release, dict):
-            raise ValueError("Config 'release' must be an object")
-        for key in ("version", "affected_components", "date"):
-            if key not in release:
-                raise ValueError(f"Config 'release' missing required key: '{key}'")
+        _validate_release(config["release"])
 
 
 def parse_repo_configs(raw_repos: list[dict[str, Any]]) -> list[RepoConfig]:
@@ -336,6 +319,52 @@ def parse_release_info(config: dict[str, Any]) -> ReleaseInfo | None:
         affected_components=tuple(raw["affected_components"]),
         release_date=raw["date"],
     )
+
+
+# ---------------------------------------------------------------------------
+# I/O functions
+# ---------------------------------------------------------------------------
+
+
+def find_html_files(directory: Path) -> Iterator[Path]:
+    """Yield all .html files under directory, recursively."""
+    for root, _, files in os.walk(directory):
+        for filename in sorted(files):
+            if filename.endswith(".html"):
+                yield Path(root) / filename
+
+
+def scan_file(
+    file_path: Path,
+    patterns: list[CompiledPattern],
+) -> FileResult:
+    """Scan a single HTML file for pattern matches."""
+    matches: list[MatchResult] = []
+    with open(file_path) as f:
+        for line_num, line in enumerate(f, start=1):
+            matches.extend(scan_line(line, line_num, patterns))
+    return FileResult(file_path=str(file_path), matches=tuple(matches))
+
+
+def scan_directory(
+    directory: Path,
+    patterns: list[CompiledPattern],
+) -> list[FileResult]:
+    """Scan all HTML files in directory tree. Returns only files with matches."""
+    results: list[FileResult] = []
+    for html_file in find_html_files(directory):
+        result = scan_file(html_file, patterns)
+        if result.matches:
+            results.append(result)
+    return results
+
+
+def load_config(config_path: Path) -> dict[str, Any]:
+    """Load and validate configuration from JSON file."""
+    with open(config_path) as f:
+        config: dict[str, Any] = json.load(f)
+    validate_config(config)
+    return config
 
 
 def write_report(content: str, output_path: Path) -> None:
@@ -424,13 +453,10 @@ def main(argv: list[str] | None = None) -> int:
         log.info("Report written: %s", txt_path)
 
         scan_report = build_scan_report(
-            application=repo.report_name,
-            base_url=repo.base_url,
+            repo=repo,
             scan_date=date_str,
             release=release,
             results=results,
-            replace_path=repo.replace_path,
-            route_map=repo.route_map,
         )
         json_path = args.output_dir / f"{repo.report_name}-{date_str}.json"
         write_json_report(scan_report, json_path)
