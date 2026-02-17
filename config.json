@@ -1,4 +1,6 @@
 {
+    "definitions_path": "behaviors",
+    "definitions_glob": "*.behavior.json",
     "release": {
         "version": "2.4.0",
         "affected_components": ["uui-grid", "uui-panel", "uui-button"],

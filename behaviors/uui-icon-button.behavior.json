@@ -1,0 +1,240 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-icon-button",
+  "version": "21.5.1",
+  "tag": "<uui-icon-button>",
+  "description": "Icon-focused button variant that wraps uui-general-button with showIcon always true. Supports cap positioning (left/right) and flat visual type. Intended for toolbar actions and compact UI areas.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "description": "Element ID, also used for data-testing-id attribute binding"
+    },
+    {
+      "name": "buttonText",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Optional button display text alongside the icon"
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the button"
+    },
+    {
+      "name": "disableButton",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Alternative disable flag (deprecated — use disabled instead)",
+      "deprecated": true
+    },
+    {
+      "name": "disableTooltipContent",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Tooltip text shown when button is disabled"
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for left icon"
+    },
+    {
+      "name": "iconCap",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for right icon"
+    },
+    {
+      "name": "fullWidth",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Sets button width to 100%"
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": ["small", "medium", "large"],
+      "default": "medium",
+      "description": "Controls button size"
+    },
+    {
+      "name": "type",
+      "type": "enum",
+      "values": ["button", "submit"],
+      "default": "button",
+      "description": "Native button type attribute"
+    },
+    {
+      "name": "uiIconName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the left icon (signal input)"
+    },
+    {
+      "name": "uiIconCapName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the right cap icon (signal input)"
+    },
+    {
+      "name": "iconColor",
+      "type": "string | Colors",
+      "required": false,
+      "default": "''",
+      "description": "Color for the SVG icon (signal input)"
+    },
+    {
+      "name": "iconSize",
+      "type": "IconSize",
+      "required": false,
+      "default": "IconSize.SM",
+      "description": "Size for the SVG icon (signal input)"
+    },
+    {
+      "name": "capPosition",
+      "type": "string",
+      "required": false,
+      "description": "Position suffix for cap styling. Value is used to build CSS class '{value}-cap-button' (e.g., 'left' produces 'left-cap-button'). Signal input.",
+      "component_specific": true
+    },
+    {
+      "name": "visualType",
+      "type": "string",
+      "required": false,
+      "description": "Visual style type applied as a CSS class (e.g., 'flat'). Signal input.",
+      "component_specific": true
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "action",
+      "type": "EventEmitter<void>",
+      "description": "Emitted on button click when not disabled"
+    },
+    {
+      "name": "deleteAction",
+      "type": "EventEmitter<void>",
+      "description": "Legacy event (deprecated — use action instead)",
+      "deprecated": true
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "uui-general-button",
+        "count": 1,
+        "description": "Wraps a uui-general-button with showIcon forced to true and capClass applied via ngClass"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "Emulated",
+    "accessibility": {
+      "role": "button",
+      "aria_attributes": []
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-icon-button"
+      }
+    },
+    {
+      "id": "renders-general-button",
+      "description": "Internally renders a uui-general-button",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-icon-button uui-general-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "show-icon-always-true",
+      "description": "The inner general button always has showIcon set to true (icon is always visible)",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-icon-button uui-general-button button span.fa, uui-icon-button uui-general-button button uui-icon",
+        "count_min": 1
+      }
+    },
+    {
+      "id": "cap-position-class",
+      "description": "When capPosition is set, the general button gets the computed cap class",
+      "precondition": { "input": "capPosition", "value": "left" },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-icon-button uui-general-button",
+        "class": "left-cap-button"
+      }
+    },
+    {
+      "id": "visual-type-class",
+      "description": "When visualType is set, the general button gets that class",
+      "precondition": { "input": "visualType", "value": "flat" },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-icon-button uui-general-button",
+        "class": "flat"
+      }
+    },
+    {
+      "id": "disabled-propagates",
+      "description": "When disabled, the inner general button is also disabled",
+      "precondition": { "input": "disabled", "value": true },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-icon-button uui-general-button button",
+        "attribute": "disabled",
+        "exists": true
+      }
+    },
+    {
+      "id": "click-emits-action",
+      "description": "Clicking the button emits the action event when not disabled",
+      "precondition": { "input": "disabled", "value": false },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-icon-button uui-general-button button",
+        "expect": "event_emitted",
+        "event": "action"
+      }
+    },
+    {
+      "id": "data-testing-id",
+      "description": "The host element has a data-testing-id attribute matching the id input",
+      "precondition": { "input": "id", "value": "my-icon-btn" },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-icon-button",
+        "attribute": "data-testing-id",
+        "value": "my-icon-btn"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

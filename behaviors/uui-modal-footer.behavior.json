@@ -1,0 +1,181 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-modal-footer",
+  "version": "21.5.1",
+  "tag": "<uui-modal-footer>",
+  "description": "Modal dialog footer with a Cancel/Close button and a primary action button. Extends TestingIdDirective (not ButtonBase). When viewOnly is true, the cancel button shows 'Close' text; otherwise shows 'Cancel'. The primary button text defaults to 'Ok' but can be overridden.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Element ID prefix used for child button IDs (e.g., '{id}-closeButton', '{id}-submitButton')"
+    },
+    {
+      "name": "buttonText",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Text for the primary (submit) button. Defaults to 'Ok' when empty."
+    },
+    {
+      "name": "disableButton",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the primary (submit) button"
+    },
+    {
+      "name": "viewOnly",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "When true, the cancel button displays 'Close' instead of 'Cancel'"
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "primaryAction",
+      "type": "EventEmitter<any>",
+      "description": "Emitted when the primary (submit) button is clicked"
+    },
+    {
+      "name": "closeAction",
+      "type": "EventEmitter<any>",
+      "description": "Emitted when the cancel/close button is clicked"
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "uui-general-button",
+        "count": 1,
+        "description": "Cancel/Close button (general-button variant)"
+      },
+      {
+        "selector": "uui-primary-button",
+        "count": 1,
+        "description": "Primary action button (submit variant)"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "Emulated",
+    "accessibility": {
+      "role": "contentinfo",
+      "aria_attributes": []
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-modal-footer"
+      }
+    },
+    {
+      "id": "renders-cancel-button",
+      "description": "Renders a cancel/close general button",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-modal-footer uui-general-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "renders-primary-button",
+      "description": "Renders a primary submit button",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-modal-footer uui-primary-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "cancel-text-default",
+      "description": "When viewOnly is false, the cancel button shows 'Cancel'",
+      "precondition": { "input": "viewOnly", "value": false },
+      "test": {
+        "type": "text_content",
+        "selector": "uui-modal-footer uui-general-button",
+        "contains": "Cancel"
+      }
+    },
+    {
+      "id": "close-text-when-view-only",
+      "description": "When viewOnly is true, the cancel button shows 'Close'",
+      "precondition": { "input": "viewOnly", "value": true },
+      "test": {
+        "type": "text_content",
+        "selector": "uui-modal-footer uui-general-button",
+        "contains": "Close"
+      }
+    },
+    {
+      "id": "primary-button-default-text",
+      "description": "When buttonText is empty, the primary button shows 'Ok'",
+      "precondition": { "input": "buttonText", "value": "" },
+      "test": {
+        "type": "text_content",
+        "selector": "uui-modal-footer uui-primary-button",
+        "contains": "Ok"
+      }
+    },
+    {
+      "id": "primary-button-custom-text",
+      "description": "When buttonText is set, the primary button shows that text",
+      "precondition": { "input": "buttonText", "value": "Save" },
+      "test": {
+        "type": "text_content",
+        "selector": "uui-modal-footer uui-primary-button",
+        "contains": "Save"
+      }
+    },
+    {
+      "id": "disable-button-disables-primary",
+      "description": "When disableButton is true, the primary button is disabled",
+      "precondition": { "input": "disableButton", "value": true },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-modal-footer uui-primary-button uui-general-button button",
+        "attribute": "disabled",
+        "exists": true
+      }
+    },
+    {
+      "id": "cancel-click-emits-close-action",
+      "description": "Clicking the cancel/close button emits closeAction",
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-modal-footer uui-general-button",
+        "expect": "event_emitted",
+        "event": "closeAction"
+      }
+    },
+    {
+      "id": "submit-click-emits-primary-action",
+      "description": "Clicking the primary button emits primaryAction",
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-modal-footer uui-primary-button",
+        "expect": "event_emitted",
+        "event": "primaryAction"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

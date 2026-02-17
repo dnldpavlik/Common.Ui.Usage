@@ -1,0 +1,322 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-general-button",
+  "version": "21.5.1",
+  "tag": "<uui-general-button>",
+  "description": "Standard general-purpose button with icon, tooltip, size, and disabled state support. This is the foundational button component that all other button variants wrap or extend.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "description": "Element ID, also used for data-testing-id attribute binding"
+    },
+    {
+      "name": "buttonText",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Button display text"
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the button and shows tooltip if disableTooltipContent is set"
+    },
+    {
+      "name": "disableButton",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Alternative disable flag (deprecated — use disabled instead)",
+      "deprecated": true
+    },
+    {
+      "name": "disableTooltipContent",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Tooltip text shown when button is disabled"
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class rendered to the left of buttonText (requires showIcon=true)"
+    },
+    {
+      "name": "iconCap",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class rendered to the right of buttonText (requires showIcon=true)"
+    },
+    {
+      "name": "showIcon",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enables rendering of icon and iconCap elements"
+    },
+    {
+      "name": "fullWidth",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Sets button width to 100% via host class and internal w-full class"
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": ["small", "medium", "large"],
+      "default": "medium",
+      "description": "Controls button size via CSS class"
+    },
+    {
+      "name": "type",
+      "type": "enum",
+      "values": ["button", "submit"],
+      "default": "button",
+      "description": "Native button type attribute"
+    },
+    {
+      "name": "uiIconName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the left icon (signal input, replaces Font Awesome icon)"
+    },
+    {
+      "name": "uiIconCapName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the right cap icon (signal input)"
+    },
+    {
+      "name": "iconColor",
+      "type": "string | Colors",
+      "required": false,
+      "default": "''",
+      "description": "Color for the SVG icon (signal input)"
+    },
+    {
+      "name": "iconSize",
+      "type": "IconSize",
+      "required": false,
+      "default": "IconSize.SM",
+      "description": "Size for the SVG icon (signal input)"
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "action",
+      "type": "EventEmitter<void>",
+      "description": "Emitted on button click when not disabled"
+    },
+    {
+      "name": "deleteAction",
+      "type": "EventEmitter<void>",
+      "description": "Legacy event emitted alongside action (deprecated — use action instead)",
+      "deprecated": true
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "uui-tooltip",
+        "count": 1,
+        "description": "Wraps the button in a tooltip component for disabled state messaging"
+      },
+      {
+        "selector": "button",
+        "count": 1,
+        "description": "Native button element with uui-button class"
+      },
+      {
+        "selector": "uui-icon",
+        "count": "0-2",
+        "description": "Optional SVG icon elements (left and/or right cap) when showIcon is true and uiIconName/uiIconCapName are set"
+      },
+      {
+        "selector": "span.fa",
+        "count": "0-2",
+        "description": "Optional Font Awesome icon elements (left and/or right cap) when showIcon is true and icon/iconCap are set"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "Emulated",
+    "change_detection": "OnPush",
+    "accessibility": {
+      "role": "button",
+      "aria_attributes": []
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-general-button"
+      }
+    },
+    {
+      "id": "renders-native-button",
+      "description": "Renders a native button element internally",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-general-button button.uui-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "renders-button-text",
+      "description": "Displays the buttonText inside the native button",
+      "test": {
+        "type": "text_content",
+        "selector": "uui-general-button button",
+        "contains": "{{buttonText}}"
+      }
+    },
+    {
+      "id": "disabled-attribute",
+      "description": "When disabled is true, the native button has the disabled attribute",
+      "precondition": { "input": "disabled", "value": true },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-general-button button",
+        "attribute": "disabled",
+        "exists": true
+      }
+    },
+    {
+      "id": "disabled-prevents-action",
+      "description": "When disabled, clicking the button does not emit the action event",
+      "precondition": { "input": "disabled", "value": true },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-general-button button",
+        "expect": "no_event_emitted",
+        "event": "action"
+      }
+    },
+    {
+      "id": "click-emits-action",
+      "description": "Clicking the button emits the action event when not disabled",
+      "precondition": { "input": "disabled", "value": false },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-general-button button",
+        "expect": "event_emitted",
+        "event": "action"
+      }
+    },
+    {
+      "id": "size-large-class",
+      "description": "When size is 'large', the button gets the 'large' CSS class",
+      "precondition": { "input": "size", "value": "large" },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-general-button button",
+        "class": "large"
+      }
+    },
+    {
+      "id": "size-small-class",
+      "description": "When size is 'small', the button gets the 'small' CSS class",
+      "precondition": { "input": "size", "value": "small" },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-general-button button",
+        "class": "small"
+      }
+    },
+    {
+      "id": "full-width-class",
+      "description": "When fullWidth is true, the button gets the 'w-full' class and the host gets 'full-width'",
+      "precondition": { "input": "fullWidth", "value": true },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-general-button button",
+        "class": "w-full"
+      }
+    },
+    {
+      "id": "host-full-width-class",
+      "description": "When fullWidth is true, the host element gets the 'full-width' class via HostBinding",
+      "precondition": { "input": "fullWidth", "value": true },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-general-button",
+        "class": "full-width"
+      }
+    },
+    {
+      "id": "button-type-attribute",
+      "description": "The native button type attribute reflects the type input",
+      "test": {
+        "type": "attribute",
+        "selector": "uui-general-button button",
+        "attribute": "type",
+        "value": "{{type}}"
+      }
+    },
+    {
+      "id": "shows-fa-icon-when-enabled",
+      "description": "When showIcon is true and icon has a value, a Font Awesome span is rendered",
+      "precondition": { "inputs": [{ "input": "showIcon", "value": true }, { "input": "icon", "value": "fa-plus" }] },
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-general-button button span.fa.fa-plus",
+        "count": 1
+      }
+    },
+    {
+      "id": "shows-uui-icon-when-enabled",
+      "description": "When showIcon is true and uiIconName is set, a uui-icon element is rendered",
+      "precondition": { "inputs": [{ "input": "showIcon", "value": true }, { "input": "uiIconName", "value": "calendar" }] },
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-general-button button uui-icon",
+        "count": 1
+      }
+    },
+    {
+      "id": "tooltip-enabled-when-disabled",
+      "description": "When disabled and disableTooltipContent has a value, the tooltip is enabled",
+      "precondition": { "inputs": [{ "input": "disabled", "value": true }, { "input": "disableTooltipContent", "value": "Cannot click" }] },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-general-button uui-tooltip",
+        "attribute": "enabled",
+        "value": "true"
+      }
+    },
+    {
+      "id": "data-testing-id",
+      "description": "The host element has a data-testing-id attribute matching the id input",
+      "precondition": { "input": "id", "value": "my-button" },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-general-button",
+        "attribute": "data-testing-id",
+        "value": "my-button"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

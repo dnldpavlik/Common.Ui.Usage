@@ -7,7 +7,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from common_ui_usage.models import FileResult, ReleaseInfo, RepoConfig, ScanReport
+from common_ui_usage.models import (
+    BehaviorDefinition,
+    FileResult,
+    ReleaseInfo,
+    RepoConfig,
+    ScanReport,
+)
 from common_ui_usage.routing import build_resolved_pages
 
 
@@ -16,9 +22,17 @@ def build_scan_report(
     scan_date: str,
     release: ReleaseInfo | None,
     results: list[FileResult],
+    behavior_index: dict[str, BehaviorDefinition] | None = None,
 ) -> ScanReport:
     """Build a structured ScanReport from scan results. Pure function."""
-    pages = build_resolved_pages(results, repo.replace_path, repo.route_map)
+    release_version = release.version if release else None
+    pages = build_resolved_pages(
+        results,
+        repo.replace_path,
+        repo.route_map,
+        behavior_index=behavior_index,
+        release_version=release_version,
+    )
     return ScanReport(
         application=repo.report_name,
         base_url=repo.base_url,

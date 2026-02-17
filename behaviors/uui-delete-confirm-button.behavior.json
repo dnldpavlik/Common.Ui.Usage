@@ -1,0 +1,254 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-delete-confirm-button",
+  "version": "21.5.1",
+  "tag": "<uui-delete-confirm-button>",
+  "description": "Delete-specific confirmation button that extends action-confirm-button behavior. Shows 'Are you sure? Yes/No' confirmation before emitting. Adds a deleteAction output alongside the standard action output. Uses the same template as uui-action-confirm-button with delete-specific styling.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "description": "Element ID, also used for data-testing-id attribute binding"
+    },
+    {
+      "name": "buttonText",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Button display text shown in initial state"
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the button and prevents showing confirmation"
+    },
+    {
+      "name": "disableButton",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Alternative disable flag (deprecated — use disabled instead)",
+      "deprecated": true
+    },
+    {
+      "name": "disableTooltipContent",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Tooltip text shown when button is disabled"
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for left icon"
+    },
+    {
+      "name": "iconCap",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for right icon"
+    },
+    {
+      "name": "showIcon",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enables icon rendering"
+    },
+    {
+      "name": "fullWidth",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Sets button width to 100%"
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": ["small", "medium", "large"],
+      "default": "medium",
+      "description": "Controls button and confirmation dialog size"
+    },
+    {
+      "name": "type",
+      "type": "enum",
+      "values": ["button", "submit"],
+      "default": "button",
+      "description": "Native button type attribute"
+    },
+    {
+      "name": "uiIconName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the left icon (signal input)"
+    },
+    {
+      "name": "uiIconCapName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the right cap icon (signal input)"
+    },
+    {
+      "name": "iconColor",
+      "type": "string | Colors",
+      "required": false,
+      "default": "''",
+      "description": "Color for the SVG icon (signal input)"
+    },
+    {
+      "name": "iconSize",
+      "type": "IconSize",
+      "required": false,
+      "default": "IconSize.SM",
+      "description": "Size for the SVG icon (signal input)"
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "action",
+      "type": "EventEmitter<void>",
+      "description": "Emitted when user confirms the action by clicking 'Yes'"
+    },
+    {
+      "name": "deleteAction",
+      "type": "EventEmitter<any>",
+      "description": "Delete-specific event emitted when user confirms. This is the primary output to bind for delete operations."
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "div.confirm-container",
+        "count": 1,
+        "description": "Container div that houses both the button and confirmation states"
+      },
+      {
+        "selector": "uui-general-button",
+        "count": 1,
+        "description": "The initial button shown before confirmation"
+      },
+      {
+        "selector": "div.confirm-question-ng",
+        "count": "0-1",
+        "description": "Confirmation dialog visible only during confirmation state"
+      },
+      {
+        "selector": "uui-link-button",
+        "count": "0-2",
+        "description": "Yes and No link buttons inside the confirmation dialog"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "Emulated",
+    "accessibility": {
+      "role": "button",
+      "aria_attributes": []
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-delete-confirm-button"
+      }
+    },
+    {
+      "id": "initial-state-shows-button",
+      "description": "In initial state, the general button is visible and confirmation is hidden",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-delete-confirm-button uui-general-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "click-shows-confirmation",
+      "description": "Clicking the button shows the 'Are you sure?' confirmation dialog",
+      "precondition": { "input": "disabled", "value": false },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-delete-confirm-button uui-general-button button",
+        "expect": "element_visible",
+        "result_selector": "uui-delete-confirm-button div.confirm-question-ng"
+      }
+    },
+    {
+      "id": "yes-emits-delete-action",
+      "description": "Clicking 'Yes' emits both action and deleteAction events",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-delete-confirm-button uui-link-button:first-of-type",
+        "expect": "event_emitted",
+        "event": "deleteAction"
+      }
+    },
+    {
+      "id": "yes-also-emits-action",
+      "description": "Clicking 'Yes' also emits the standard action event",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-delete-confirm-button uui-link-button:first-of-type",
+        "expect": "event_emitted",
+        "event": "action"
+      }
+    },
+    {
+      "id": "no-resets-button",
+      "description": "Clicking 'No' resets to initial button state without emitting",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-delete-confirm-button uui-link-button:last-of-type",
+        "expect": "element_visible",
+        "result_selector": "uui-delete-confirm-button uui-general-button"
+      }
+    },
+    {
+      "id": "timeout-resets-button",
+      "description": "After 6 seconds without interaction, resets to initial button state",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "timer",
+        "duration_ms": 6000,
+        "expect": "element_visible",
+        "result_selector": "uui-delete-confirm-button uui-general-button"
+      }
+    },
+    {
+      "id": "disabled-prevents-confirmation",
+      "description": "When disabled, clicking does not show confirmation",
+      "precondition": { "input": "disabled", "value": true },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-delete-confirm-button uui-general-button button",
+        "expect": "no_change"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

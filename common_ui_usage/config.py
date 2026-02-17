@@ -55,6 +55,10 @@ def validate_config(config: dict[str, Any]) -> None:
         _validate_repo(repo, i)
     if "release" in config:
         _validate_release(config["release"])
+    if "definitions_path" in config and not isinstance(config["definitions_path"], str):
+        raise ValueError("Config 'definitions_path' must be a string")
+    if "definitions_glob" in config and not isinstance(config["definitions_glob"], str):
+        raise ValueError("Config 'definitions_glob' must be a string")
 
 
 def parse_repo_configs(raw_repos: list[dict[str, Any]]) -> list[RepoConfig]:
@@ -91,6 +95,15 @@ def parse_release_info(config: dict[str, Any]) -> ReleaseInfo | None:
         affected_components=tuple(raw["affected_components"]),
         release_date=raw["date"],
     )
+
+
+def parse_definitions_config(config: dict[str, Any]) -> tuple[Path | None, str]:
+    """Parse optional definitions config. Returns (path_or_none, glob_pattern)."""
+    raw_path = config.get("definitions_path")
+    glob_pattern = config.get("definitions_glob", "*.behavior.json")
+    if raw_path is None:
+        return None, glob_pattern
+    return Path(raw_path), glob_pattern
 
 
 def load_config(config_path: Path) -> dict[str, Any]:

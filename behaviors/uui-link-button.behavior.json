@@ -1,0 +1,210 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-link-button",
+  "version": "21.5.1",
+  "tag": "<uui-link-button>",
+  "description": "Link-styled button that wraps uui-general-button with link-specific SCSS styling. Shares the same template as uui-primary-button. Used for inline actions, secondary actions, and confirmation dialog choices.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "description": "Element ID, also used for data-testing-id attribute binding"
+    },
+    {
+      "name": "buttonText",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Button display text"
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the button"
+    },
+    {
+      "name": "disableButton",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Alternative disable flag (deprecated — use disabled instead)",
+      "deprecated": true
+    },
+    {
+      "name": "disableTooltipContent",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Tooltip text shown when button is disabled"
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for left icon"
+    },
+    {
+      "name": "iconCap",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for right icon"
+    },
+    {
+      "name": "showIcon",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enables icon rendering"
+    },
+    {
+      "name": "fullWidth",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Sets button width to 100%"
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": ["small", "medium", "large"],
+      "default": "medium",
+      "description": "Controls button size"
+    },
+    {
+      "name": "type",
+      "type": "enum",
+      "values": ["button", "submit"],
+      "default": "button",
+      "description": "Native button type attribute"
+    },
+    {
+      "name": "uiIconName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the left icon (signal input)"
+    },
+    {
+      "name": "uiIconCapName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the right cap icon (signal input)"
+    },
+    {
+      "name": "iconColor",
+      "type": "string | Colors",
+      "required": false,
+      "default": "''",
+      "description": "Color for the SVG icon (signal input)"
+    },
+    {
+      "name": "iconSize",
+      "type": "IconSize",
+      "required": false,
+      "default": "IconSize.SM",
+      "description": "Size for the SVG icon (signal input)"
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "action",
+      "type": "EventEmitter<void>",
+      "description": "Emitted on button click when not disabled"
+    },
+    {
+      "name": "deleteAction",
+      "type": "EventEmitter<void>",
+      "description": "Legacy event (deprecated — use action instead)",
+      "deprecated": true
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "uui-general-button",
+        "count": 1,
+        "description": "Wraps a uui-general-button internally with link-specific styling"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "Emulated",
+    "accessibility": {
+      "role": "button",
+      "aria_attributes": []
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-link-button"
+      }
+    },
+    {
+      "id": "renders-general-button",
+      "description": "Internally renders a uui-general-button",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-link-button uui-general-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "renders-button-text",
+      "description": "Displays the buttonText",
+      "test": {
+        "type": "text_content",
+        "selector": "uui-link-button uui-general-button",
+        "contains": "{{buttonText}}"
+      }
+    },
+    {
+      "id": "disabled-propagates",
+      "description": "When disabled, the inner general button is also disabled",
+      "precondition": { "input": "disabled", "value": true },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-link-button uui-general-button button",
+        "attribute": "disabled",
+        "exists": true
+      }
+    },
+    {
+      "id": "click-emits-action",
+      "description": "Clicking the button emits the action event when not disabled",
+      "precondition": { "input": "disabled", "value": false },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-link-button uui-general-button button",
+        "expect": "event_emitted",
+        "event": "action"
+      }
+    },
+    {
+      "id": "link-styling",
+      "description": "The component renders with link-style appearance (distinguished from standard and primary buttons via SCSS)",
+      "test": {
+        "type": "visual",
+        "description": "Button should appear as a text link rather than a standard button"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

@@ -9,9 +9,15 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from common_ui_usage.config import load_config, parse_release_info, parse_repo_configs
+from common_ui_usage.behaviors import build_behavior_index, load_behaviors
+from common_ui_usage.config import (
+    load_config,
+    parse_definitions_config,
+    parse_release_info,
+    parse_repo_configs,
+)
 from common_ui_usage.formatting import format_report
-from common_ui_usage.models import CompiledPattern, ReleaseInfo, RepoConfig
+from common_ui_usage.models import BehaviorDefinition, CompiledPattern, ReleaseInfo, RepoConfig
 from common_ui_usage.patterns import build_patterns
 from common_ui_usage.reports import build_scan_report, write_json_report, write_report
 from common_ui_usage.scanner import scan_directory
@@ -53,6 +59,7 @@ def process_repo(
     date_str: str,
     output_dir: Path,
     log: logging.Logger,
+    behavior_index: dict[str, BehaviorDefinition] | None = None,
 ) -> None:
     """Scan a single repository and write both text and JSON reports."""
     log.info("Scanning: %s", repo.source_path)
@@ -68,6 +75,7 @@ def process_repo(
         scan_date=date_str,
         release=release,
         results=results,
+        behavior_index=behavior_index,
     )
     json_path = output_dir / f"{repo.report_name}-{date_str}.json"
     write_json_report(scan_report, json_path)
@@ -98,11 +106,21 @@ def main(argv: list[str] | None = None) -> int:
     release = parse_release_info(config)
     date_str = date.today().strftime("%m-%d-%Y")
 
+    definitions_path, definitions_glob = parse_definitions_config(config)
+    behavior_index: dict[str, BehaviorDefinition] | None = None
+    if definitions_path is not None:
+        resolved_path = args.config.parent / definitions_path
+        behaviors = load_behaviors(resolved_path, definitions_glob)
+        log.info("Loaded %d behavior definition(s) from %s", len(behaviors), resolved_path)
+        behavior_index = build_behavior_index(behaviors) if behaviors else None
+
     for repo in repos:
         if not repo.source_path.is_dir():
             log.warning("Directory not found, skipping: %s", repo.source_path)
             continue
-        process_repo(repo, patterns, release, date_str, args.output_dir, log)
+        process_repo(
+            repo, patterns, release, date_str, args.output_dir, log, behavior_index
+        )
 
     log.info("Search completed for all applications.")
     return 0

@@ -53,11 +53,33 @@ class RepoConfig:
 
 
 @dataclass(frozen=True)
+class BreakingChange:
+    """A single breaking change entry from a behavior definition."""
+
+    version: str
+    description: str
+
+
+@dataclass(frozen=True)
+class BehaviorDefinition:
+    """Parsed behavior definition for a UI component."""
+
+    component: str
+    version: str
+    tag: str
+    filename: str
+    breaking_changes: tuple[BreakingChange, ...]
+
+
+@dataclass(frozen=True)
 class ComponentMatch:
     """A component found on a page with all its match locations."""
 
     tag: str
     lines: tuple[int, ...]
+    behavior_definition: str | None = None
+    has_breaking_changes: bool = False
+    breaking_change: str | None = None
 
 
 @dataclass(frozen=True)

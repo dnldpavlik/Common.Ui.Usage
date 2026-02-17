@@ -1,0 +1,282 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-action-confirm-button",
+  "version": "21.5.1",
+  "tag": "<uui-action-confirm-button>",
+  "description": "Button with built-in confirmation dialog. First click shows 'Are you sure? Yes/No' inline confirmation; 'Yes' emits the action, 'No' or a 6-second timeout resets to the original button. Used for destructive or important actions that need user confirmation.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "description": "Element ID, also used for data-testing-id attribute binding"
+    },
+    {
+      "name": "buttonText",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Button display text shown in initial (non-confirmation) state"
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the button and prevents showing confirmation"
+    },
+    {
+      "name": "disableButton",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Alternative disable flag (deprecated — use disabled instead)",
+      "deprecated": true
+    },
+    {
+      "name": "disableTooltipContent",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Tooltip text shown when button is disabled"
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for left icon"
+    },
+    {
+      "name": "iconCap",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for right icon"
+    },
+    {
+      "name": "showIcon",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enables icon rendering"
+    },
+    {
+      "name": "fullWidth",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Sets button width to 100%"
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": ["small", "medium", "large"],
+      "default": "medium",
+      "description": "Controls button and confirmation dialog size"
+    },
+    {
+      "name": "type",
+      "type": "enum",
+      "values": ["button", "submit"],
+      "default": "button",
+      "description": "Native button type attribute"
+    },
+    {
+      "name": "uiIconName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the left icon (signal input)"
+    },
+    {
+      "name": "uiIconCapName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the right cap icon (signal input)"
+    },
+    {
+      "name": "iconColor",
+      "type": "string | Colors",
+      "required": false,
+      "default": "''",
+      "description": "Color for the SVG icon (signal input)"
+    },
+    {
+      "name": "iconSize",
+      "type": "IconSize",
+      "required": false,
+      "default": "IconSize.SM",
+      "description": "Size for the SVG icon (signal input)"
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "action",
+      "type": "EventEmitter<void>",
+      "description": "Emitted when user confirms the action by clicking 'Yes'"
+    },
+    {
+      "name": "deleteAction",
+      "type": "EventEmitter<void>",
+      "description": "Legacy event (deprecated — use action instead)",
+      "deprecated": true
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "div.confirm-container",
+        "count": 1,
+        "description": "Container div that houses both the button and confirmation states"
+      },
+      {
+        "selector": "uui-general-button",
+        "count": 1,
+        "description": "The initial button shown before confirmation (hidden during confirmation)"
+      },
+      {
+        "selector": "div.confirm-question-ng",
+        "count": "0-1",
+        "description": "Confirmation dialog with 'Are you sure?' text and Yes/No link buttons (visible only during confirmation state)"
+      },
+      {
+        "selector": "uui-link-button",
+        "count": "0-2",
+        "description": "Yes and No link buttons inside the confirmation dialog"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "Emulated",
+    "accessibility": {
+      "role": "button",
+      "aria_attributes": []
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-action-confirm-button"
+      }
+    },
+    {
+      "id": "initial-state-shows-button",
+      "description": "In initial state, the general button is visible and the confirmation dialog is hidden",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-action-confirm-button uui-general-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "initial-state-hides-confirmation",
+      "description": "In initial state, the confirmation dialog is not rendered",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-action-confirm-button div.confirm-question-ng",
+        "count": 0
+      }
+    },
+    {
+      "id": "click-shows-confirmation",
+      "description": "Clicking the button shows the 'Are you sure?' confirmation dialog",
+      "precondition": { "input": "disabled", "value": false },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-action-confirm-button uui-general-button button",
+        "expect": "element_visible",
+        "result_selector": "uui-action-confirm-button div.confirm-question-ng"
+      }
+    },
+    {
+      "id": "confirmation-shows-yes-no",
+      "description": "The confirmation dialog contains 'Are you sure?' text and Yes/No buttons",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "text_content",
+        "selector": "uui-action-confirm-button div.confirm-question-ng",
+        "contains": "Are you sure?"
+      }
+    },
+    {
+      "id": "yes-confirms-action",
+      "description": "Clicking 'Yes' emits the action event and resets to initial state",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-action-confirm-button uui-link-button:first-of-type",
+        "expect": "event_emitted",
+        "event": "action"
+      }
+    },
+    {
+      "id": "no-resets-button",
+      "description": "Clicking 'No' resets to initial button state without emitting action",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-action-confirm-button uui-link-button:last-of-type",
+        "expect": "element_visible",
+        "result_selector": "uui-action-confirm-button uui-general-button"
+      }
+    },
+    {
+      "id": "timeout-resets-button",
+      "description": "After 6 seconds without interaction, the confirmation dialog resets to initial button state",
+      "precondition": { "state": "confirmation_visible" },
+      "test": {
+        "type": "timer",
+        "duration_ms": 6000,
+        "expect": "element_visible",
+        "result_selector": "uui-action-confirm-button uui-general-button"
+      }
+    },
+    {
+      "id": "disabled-prevents-confirmation",
+      "description": "When disabled, clicking the button does not show the confirmation dialog",
+      "precondition": { "input": "disabled", "value": true },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-action-confirm-button uui-general-button button",
+        "expect": "no_change"
+      }
+    },
+    {
+      "id": "size-class-on-container",
+      "description": "The container div gets the size CSS class",
+      "precondition": { "input": "size", "value": "large" },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-action-confirm-button div.confirm-container",
+        "class": "large"
+      }
+    },
+    {
+      "id": "host-full-width-class",
+      "description": "When fullWidth is true, the host element gets the 'full-width' class",
+      "precondition": { "input": "fullWidth", "value": true },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-action-confirm-button",
+        "class": "full-width"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

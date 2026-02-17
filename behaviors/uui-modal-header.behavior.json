@@ -1,0 +1,148 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-modal-header",
+  "version": "21.5.1",
+  "tag": "<uui-modal-header>",
+  "description": "Modal dialog header with a title and close button. Extends TestingIdDirective (not ButtonBase). Renders an h4 title and a link-button styled close button with '×' character.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Element ID prefix used for child element IDs (e.g., '{id}_title', '{id}_close-button')"
+    },
+    {
+      "name": "modalTitle",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Title text displayed in the h4 element"
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the close button"
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "closeAction",
+      "type": "EventEmitter<any>",
+      "description": "Emitted when the close button is clicked"
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "h4",
+        "count": 1,
+        "description": "Title element displaying the modalTitle text"
+      },
+      {
+        "selector": "uui-link-button",
+        "count": 1,
+        "description": "Close button rendered as a link button with '×' text"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "Emulated",
+    "accessibility": {
+      "role": "banner",
+      "aria_attributes": ["aria-label"]
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-modal-header"
+      }
+    },
+    {
+      "id": "renders-title",
+      "description": "Renders the modalTitle text inside an h4 element",
+      "test": {
+        "type": "text_content",
+        "selector": "uui-modal-header h4",
+        "contains": "{{modalTitle}}"
+      }
+    },
+    {
+      "id": "renders-close-button",
+      "description": "Renders a close button as a uui-link-button",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-modal-header uui-link-button",
+        "count": 1
+      }
+    },
+    {
+      "id": "close-button-text",
+      "description": "The close button displays the × character",
+      "test": {
+        "type": "text_content",
+        "selector": "uui-modal-header uui-link-button",
+        "contains": "×"
+      }
+    },
+    {
+      "id": "close-button-aria-label",
+      "description": "The close button has aria-label='Close' for accessibility",
+      "test": {
+        "type": "attribute",
+        "selector": "uui-modal-header uui-link-button",
+        "attribute": "aria-label",
+        "value": "Close"
+      }
+    },
+    {
+      "id": "close-click-emits-close-action",
+      "description": "Clicking the close button emits closeAction",
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-modal-header uui-link-button",
+        "expect": "event_emitted",
+        "event": "closeAction"
+      }
+    },
+    {
+      "id": "disabled-propagates-to-close-button",
+      "description": "When disabled is true, the close button is disabled",
+      "precondition": { "input": "disabled", "value": true },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-modal-header uui-link-button uui-general-button button",
+        "attribute": "disabled",
+        "exists": true
+      }
+    },
+    {
+      "id": "title-element-id",
+      "description": "The h4 element has id set to '{id}_title'",
+      "precondition": { "input": "id", "value": "my-modal" },
+      "test": {
+        "type": "attribute",
+        "selector": "uui-modal-header h4",
+        "attribute": "id",
+        "value": "my-modal_title"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

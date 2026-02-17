@@ -1,0 +1,295 @@
+{
+  "$schema": "../behavior-schema.json",
+  "component": "uui-dropdown-button",
+  "version": "21.5.1",
+  "tag": "<uui-dropdown-button>",
+  "description": "Button with a dropdown popup menu. Supports a standard mode (single button with caret) and a split mode (separate action button + caret toggle). Uses Kendo UI Popup for the dropdown overlay. ViewEncapsulation.None for global style access.",
+
+  "inputs": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": false,
+      "description": "Element ID, also used for data-testing-id attribute binding"
+    },
+    {
+      "name": "buttonText",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Button display text"
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Disables the button"
+    },
+    {
+      "name": "disableButton",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Alternative disable flag (deprecated — use disabled instead)",
+      "deprecated": true
+    },
+    {
+      "name": "disableTooltipContent",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Tooltip text shown when button is disabled"
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "required": false,
+      "default": "''",
+      "description": "Font Awesome icon class for left icon"
+    },
+    {
+      "name": "showIcon",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Enables icon rendering (note: always true internally for the main button)"
+    },
+    {
+      "name": "fullWidth",
+      "type": "boolean",
+      "required": false,
+      "default": false,
+      "description": "Sets button width to 100%"
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": ["small", "medium", "large"],
+      "default": "medium",
+      "description": "Controls button and dropdown menu size"
+    },
+    {
+      "name": "type",
+      "type": "enum",
+      "values": ["button", "submit"],
+      "default": "button",
+      "description": "Native button type attribute"
+    },
+    {
+      "name": "uiIconName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the left icon (signal input)"
+    },
+    {
+      "name": "uiIconCapName",
+      "type": "IconName",
+      "required": false,
+      "description": "SVG icon name for the right cap icon (signal input)"
+    },
+    {
+      "name": "iconColor",
+      "type": "string | Colors",
+      "required": false,
+      "default": "''",
+      "description": "Color for the SVG icon (signal input)"
+    },
+    {
+      "name": "iconSize",
+      "type": "IconSize",
+      "required": false,
+      "default": "IconSize.SM",
+      "description": "Size for the SVG icon (signal input)"
+    },
+    {
+      "name": "buttonType",
+      "type": "enum",
+      "values": ["", "split"],
+      "default": "",
+      "description": "When 'split', renders a separate caret button alongside the main button. When empty, the caret is part of the main button.",
+      "component_specific": true
+    },
+    {
+      "name": "options",
+      "type": "DropDownOption[]",
+      "required": false,
+      "default": "[]",
+      "description": "Array of dropdown menu options. Each option has 'text' (display label) and 'name' (identifier) properties.",
+      "component_specific": true
+    }
+  ],
+
+  "outputs": [
+    {
+      "name": "action",
+      "type": "EventEmitter<void>",
+      "description": "Emitted on main button click (inherited from ButtonBase)"
+    },
+    {
+      "name": "selectAction",
+      "type": "EventEmitter<DropDownOption>",
+      "description": "Emitted when a dropdown option is selected, with the selected DropDownOption as payload",
+      "component_specific": true
+    },
+    {
+      "name": "deleteAction",
+      "type": "EventEmitter<void>",
+      "description": "Legacy event (deprecated — use action instead)",
+      "deprecated": true
+    }
+  ],
+
+  "rendering": {
+    "host_element_visible": true,
+    "expected_internal_elements": [
+      {
+        "selector": "uui-general-button",
+        "count": "1-2",
+        "description": "Main button (always), plus a second caret-only button when buttonType is 'split'"
+      },
+      {
+        "selector": "kendo-popup",
+        "count": "0-1",
+        "description": "Kendo UI Popup component containing the dropdown menu (only rendered when dropdown is open)"
+      },
+      {
+        "selector": "ul.uui-dropdown-menu",
+        "count": "0-1",
+        "description": "Dropdown menu list inside the popup"
+      },
+      {
+        "selector": "li.uui-dropdown-item",
+        "count": "0-n",
+        "description": "One list item per option in the options array"
+      }
+    ],
+    "shadow_dom": false,
+    "view_encapsulation": "None",
+    "accessibility": {
+      "role": "menu",
+      "aria_attributes": ["aria-labelledby"]
+    }
+  },
+
+  "behaviors": [
+    {
+      "id": "renders-visible",
+      "description": "Component renders and is visible in the DOM",
+      "test": {
+        "type": "visible",
+        "selector": "uui-dropdown-button"
+      }
+    },
+    {
+      "id": "renders-main-button",
+      "description": "Renders at least one uui-general-button",
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-dropdown-button uui-general-button",
+        "count_min": 1
+      }
+    },
+    {
+      "id": "dropdown-initially-closed",
+      "description": "The dropdown popup is not visible initially",
+      "test": {
+        "type": "element_exists",
+        "selector": "kendo-popup",
+        "count": 0
+      }
+    },
+    {
+      "id": "click-opens-dropdown",
+      "description": "Clicking the button toggles the dropdown popup open",
+      "precondition": { "input": "disabled", "value": false },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "uui-dropdown-button uui-general-button button",
+        "expect": "element_visible",
+        "result_selector": "kendo-popup ul.uui-dropdown-menu"
+      }
+    },
+    {
+      "id": "dropdown-renders-options",
+      "description": "When open, the dropdown renders one li.uui-dropdown-item per option",
+      "precondition": { "state": "dropdown_open", "input": "options", "value": [{"text": "Option A", "name": "a"}, {"text": "Option B", "name": "b"}] },
+      "test": {
+        "type": "element_exists",
+        "selector": "kendo-popup li.uui-dropdown-item",
+        "count": 2
+      }
+    },
+    {
+      "id": "option-click-emits-select-action",
+      "description": "Clicking a dropdown option emits selectAction with the selected DropDownOption",
+      "precondition": { "state": "dropdown_open" },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "kendo-popup li.uui-dropdown-item:first-child",
+        "expect": "event_emitted",
+        "event": "selectAction"
+      }
+    },
+    {
+      "id": "option-click-closes-dropdown",
+      "description": "Clicking a dropdown option closes the dropdown",
+      "precondition": { "state": "dropdown_open" },
+      "test": {
+        "type": "interaction",
+        "action": "click",
+        "selector": "kendo-popup li.uui-dropdown-item:first-child",
+        "expect": "element_hidden",
+        "result_selector": "kendo-popup"
+      }
+    },
+    {
+      "id": "split-mode-renders-two-buttons",
+      "description": "In split mode, two uui-general-button elements are rendered",
+      "precondition": { "input": "buttonType", "value": "split" },
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-dropdown-button uui-general-button",
+        "count": 2
+      }
+    },
+    {
+      "id": "non-split-has-caret-icon",
+      "description": "In non-split mode, the main button renders a fa-caret-down icon cap",
+      "precondition": { "input": "buttonType", "value": "" },
+      "test": {
+        "type": "element_exists",
+        "selector": "uui-dropdown-button uui-general-button button span.fa.fa-caret-down",
+        "count": 1
+      }
+    },
+    {
+      "id": "size-class-on-dropdown-menu",
+      "description": "The dropdown menu gets the size CSS class",
+      "precondition": { "input": "size", "value": "large" },
+      "test": {
+        "type": "has_class",
+        "selector": "kendo-popup ul.uui-dropdown-menu",
+        "class": "large"
+      }
+    },
+    {
+      "id": "host-full-width-class",
+      "description": "When fullWidth is true, the host element gets the 'full-width' class",
+      "precondition": { "input": "fullWidth", "value": true },
+      "test": {
+        "type": "has_class",
+        "selector": "uui-dropdown-button",
+        "class": "full-width"
+      }
+    }
+  ],
+
+  "replaces": {
+    "anti_patterns": []
+  },
+
+  "breaking_changes": []
+}

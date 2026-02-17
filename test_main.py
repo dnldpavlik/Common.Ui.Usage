@@ -11,6 +11,8 @@ from pathlib import Path
 
 from common_ui_usage import (
     NEGATIVE_LOOKAHEAD,
+    BehaviorDefinition,
+    BreakingChange,
     CompiledPattern,
     ComponentMatch,
     FileResult,
@@ -20,17 +22,25 @@ from common_ui_usage import (
     ResolvedPage,
     RouteMapping,
     ScanReport,
+    build_behavior_index,
     build_pattern,
     build_patterns,
     build_resolved_pages,
     build_scan_report,
+    check_breaking_changes,
+    enrich_component_match,
+    extract_component_name,
+    find_behavior_for_tag,
     find_html_files,
     format_file_result,
     format_report,
     group_matches_by_tag,
+    load_behavior_file,
+    load_behaviors,
     load_config,
     main,
     parse_args,
+    parse_definitions_config,
     parse_release_info,
     parse_repo_configs,
     resolve_route,
@@ -1353,6 +1363,531 @@ class TestNewDataStructures(unittest.TestCase):
         a = ComponentMatch("<uui-grid", (5,))
         b = ComponentMatch("<uui-grid", (5,))
         self.assertEqual(a, b)
+
+
+# ===========================================================================
+# TestBreakingChangeDataclass — frozen dataclass contracts
+# ===========================================================================
+
+
+class TestBreakingChangeDataclass(unittest.TestCase):
+    """Tests for BreakingChange frozen dataclass."""
+
+    def test_is_frozen(self):
+        bc = BreakingChange(version="2.0.0", description="Removed input X")
+        with self.assertRaises(AttributeError):
+            bc.version = "3.0.0"
+
+    def test_equality(self):
+        a = BreakingChange("2.0.0", "Removed input X")
+        b = BreakingChange("2.0.0", "Removed input X")
+        self.assertEqual(a, b)
+
+
+# ===========================================================================
+# TestBehaviorDefinitionDataclass — frozen dataclass contracts
+# ===========================================================================
+
+
+class TestBehaviorDefinitionDataclass(unittest.TestCase):
+    """Tests for BehaviorDefinition frozen dataclass."""
+
+    def test_is_frozen(self):
+        bd = BehaviorDefinition(
+            component="uui-button",
+            version="1.0.0",
+            tag="<uui-button>",
+            filename="uui-button.behavior.json",
+            breaking_changes=(),
+        )
+        with self.assertRaises(AttributeError):
+            bd.component = "other"
+
+    def test_equality(self):
+        a = BehaviorDefinition("uui-button", "1.0.0", "<uui-button>", "f.json", ())
+        b = BehaviorDefinition("uui-button", "1.0.0", "<uui-button>", "f.json", ())
+        self.assertEqual(a, b)
+
+    def test_fields(self):
+        bd = BehaviorDefinition(
+            component="uui-grid",
+            version="2.0.0",
+            tag="<uui-grid>",
+            filename="uui-grid.behavior.json",
+            breaking_changes=(BreakingChange("2.0.0", "Changed API"),),
+        )
+        self.assertEqual(bd.component, "uui-grid")
+        self.assertEqual(bd.version, "2.0.0")
+        self.assertEqual(bd.tag, "<uui-grid>")
+        self.assertEqual(bd.filename, "uui-grid.behavior.json")
+        self.assertEqual(len(bd.breaking_changes), 1)
+
+
+# ===========================================================================
+# TestExtractComponentName — tag stripping
+# ===========================================================================
+
+
+class TestExtractComponentName(unittest.TestCase):
+    """Tests for extract_component_name."""
+
+    def test_strips_leading_angle_bracket(self):
+        self.assertEqual(extract_component_name("<uui-button"), "uui-button")
+
+    def test_strips_leading_bracket_with_closing(self):
+        self.assertEqual(extract_component_name("<uui-grid"), "uui-grid")
+
+    def test_non_tag_passthrough(self):
+        self.assertEqual(extract_component_name("someDirective"), "someDirective")
+
+    def test_empty_string(self):
+        self.assertEqual(extract_component_name(""), "")
+
+
+# ===========================================================================
+# TestLoadBehaviorFile — single file loading
+# ===========================================================================
+
+
+class TestLoadBehaviorFile(TempDirMixin, unittest.TestCase):
+    """Tests for load_behavior_file."""
+
+    def _create_behavior(self, filename: str, data: dict) -> Path:
+        path = self.test_dir / filename
+        path.write_text(json.dumps(data))
+        return path
+
+    def test_loads_valid_file(self):
+        path = self._create_behavior(
+            "uui-button.behavior.json",
+            {
+                "component": "uui-button",
+                "version": "1.0.0",
+                "tag": "<uui-button>",
+                "breaking_changes": [],
+            },
+        )
+        bd = load_behavior_file(path)
+        self.assertEqual(bd.component, "uui-button")
+        self.assertEqual(bd.version, "1.0.0")
+        self.assertEqual(bd.tag, "<uui-button>")
+
+    def test_captures_filename(self):
+        path = self._create_behavior(
+            "uui-grid.behavior.json",
+            {
+                "component": "uui-grid",
+                "version": "2.0.0",
+                "tag": "<uui-grid>",
+                "breaking_changes": [],
+            },
+        )
+        bd = load_behavior_file(path)
+        self.assertEqual(bd.filename, "uui-grid.behavior.json")
+
+    def test_parses_breaking_changes(self):
+        path = self._create_behavior(
+            "uui-panel.behavior.json",
+            {
+                "component": "uui-panel",
+                "version": "2.0.0",
+                "tag": "<uui-panel>",
+                "breaking_changes": [
+                    {"version": "2.0.0", "description": "Removed header input"},
+                    {"version": "3.0.0", "description": "Changed API"},
+                ],
+            },
+        )
+        bd = load_behavior_file(path)
+        self.assertEqual(len(bd.breaking_changes), 2)
+        self.assertEqual(bd.breaking_changes[0].version, "2.0.0")
+        self.assertEqual(bd.breaking_changes[0].description, "Removed header input")
+
+
+# ===========================================================================
+# TestLoadBehaviors — directory loading
+# ===========================================================================
+
+
+class TestLoadBehaviors(TempDirMixin, unittest.TestCase):
+    """Tests for load_behaviors."""
+
+    def _create_behavior(self, filename: str, data: dict) -> Path:
+        path = self.test_dir / filename
+        path.write_text(json.dumps(data))
+        return path
+
+    def test_loads_from_directory(self):
+        self._create_behavior(
+            "uui-button.behavior.json",
+            {"component": "uui-button", "version": "1.0.0", "tag": "<uui-button>"},
+        )
+        self._create_behavior(
+            "uui-grid.behavior.json",
+            {"component": "uui-grid", "version": "1.0.0", "tag": "<uui-grid>"},
+        )
+        behaviors = load_behaviors(self.test_dir, "*.behavior.json")
+        self.assertEqual(len(behaviors), 2)
+
+    def test_glob_filtering(self):
+        self._create_behavior(
+            "uui-button.behavior.json",
+            {"component": "uui-button", "version": "1.0.0", "tag": "<uui-button>"},
+        )
+        (self.test_dir / "other.json").write_text("{}")
+        behaviors = load_behaviors(self.test_dir, "*.behavior.json")
+        self.assertEqual(len(behaviors), 1)
+
+    def test_empty_directory(self):
+        behaviors = load_behaviors(self.test_dir, "*.behavior.json")
+        self.assertEqual(behaviors, ())
+
+    def test_missing_directory(self):
+        behaviors = load_behaviors(self.test_dir / "nonexistent", "*.behavior.json")
+        self.assertEqual(behaviors, ())
+
+
+# ===========================================================================
+# TestBuildBehaviorIndex — index building
+# ===========================================================================
+
+
+class TestBuildBehaviorIndex(unittest.TestCase):
+    """Tests for build_behavior_index."""
+
+    def test_indexes_by_component(self):
+        behaviors = (
+            BehaviorDefinition("uui-button", "1.0.0", "<uui-button>", "f1.json", ()),
+            BehaviorDefinition("uui-grid", "1.0.0", "<uui-grid>", "f2.json", ()),
+        )
+        index = build_behavior_index(behaviors)
+        self.assertIn("uui-button", index)
+        self.assertIn("uui-grid", index)
+        self.assertEqual(index["uui-button"].filename, "f1.json")
+
+    def test_empty_input(self):
+        index = build_behavior_index(())
+        self.assertEqual(index, {})
+
+    def test_last_wins_on_duplicate(self):
+        behaviors = (
+            BehaviorDefinition("uui-button", "1.0.0", "<uui-button>", "old.json", ()),
+            BehaviorDefinition("uui-button", "2.0.0", "<uui-button>", "new.json", ()),
+        )
+        index = build_behavior_index(behaviors)
+        self.assertEqual(index["uui-button"].filename, "new.json")
+
+
+# ===========================================================================
+# TestFindBehaviorForTag — tag lookup
+# ===========================================================================
+
+
+class TestFindBehaviorForTag(unittest.TestCase):
+    """Tests for find_behavior_for_tag."""
+
+    def setUp(self):
+        self.bd = BehaviorDefinition("uui-button", "1.0.0", "<uui-button>", "f.json", ())
+        self.index = {"uui-button": self.bd}
+
+    def test_match(self):
+        result = find_behavior_for_tag("<uui-button", self.index)
+        self.assertEqual(result, self.bd)
+
+    def test_no_match(self):
+        result = find_behavior_for_tag("<uui-grid", self.index)
+        self.assertIsNone(result)
+
+    def test_non_tag_pattern(self):
+        index = {"someDirective": self.bd}
+        result = find_behavior_for_tag("someDirective", index)
+        self.assertEqual(result, self.bd)
+
+    def test_empty_index(self):
+        result = find_behavior_for_tag("<uui-button", {})
+        self.assertIsNone(result)
+
+
+# ===========================================================================
+# TestCheckBreakingChanges — breaking change detection
+# ===========================================================================
+
+
+class TestCheckBreakingChanges(unittest.TestCase):
+    """Tests for check_breaking_changes."""
+
+    def test_no_breaking_changes(self):
+        bd = BehaviorDefinition("uui-button", "1.0.0", "<uui-button>", "f.json", ())
+        has, desc = check_breaking_changes(bd, "2.0.0")
+        self.assertFalse(has)
+        self.assertIsNone(desc)
+
+    def test_version_match(self):
+        bd = BehaviorDefinition(
+            "uui-button",
+            "1.0.0",
+            "<uui-button>",
+            "f.json",
+            (BreakingChange("2.0.0", "Removed input X"),),
+        )
+        has, desc = check_breaking_changes(bd, "2.0.0")
+        self.assertTrue(has)
+        self.assertEqual(desc, "Removed input X")
+
+    def test_version_mismatch(self):
+        bd = BehaviorDefinition(
+            "uui-button",
+            "1.0.0",
+            "<uui-button>",
+            "f.json",
+            (BreakingChange("3.0.0", "Changed API"),),
+        )
+        has, desc = check_breaking_changes(bd, "2.0.0")
+        self.assertFalse(has)
+        self.assertIsNone(desc)
+
+    def test_none_version(self):
+        bd = BehaviorDefinition(
+            "uui-button",
+            "1.0.0",
+            "<uui-button>",
+            "f.json",
+            (BreakingChange("2.0.0", "Removed input X"),),
+        )
+        has, desc = check_breaking_changes(bd, None)
+        self.assertFalse(has)
+        self.assertIsNone(desc)
+
+
+# ===========================================================================
+# TestEnrichComponentMatch — component enrichment
+# ===========================================================================
+
+
+class TestEnrichComponentMatch(unittest.TestCase):
+    """Tests for enrich_component_match."""
+
+    def test_with_behavior_no_breaking(self):
+        bd = BehaviorDefinition("uui-button", "1.0.0", "<uui-button>", "f.json", ())
+        index = {"uui-button": bd}
+        cm = ComponentMatch(tag="<uui-button", lines=(5, 10))
+        enriched = enrich_component_match(cm, index, None)
+        self.assertEqual(enriched.behavior_definition, "f.json")
+        self.assertFalse(enriched.has_breaking_changes)
+        self.assertIsNone(enriched.breaking_change)
+
+    def test_with_breaking_change(self):
+        bd = BehaviorDefinition(
+            "uui-button",
+            "1.0.0",
+            "<uui-button>",
+            "f.json",
+            (BreakingChange("2.0.0", "Removed input X"),),
+        )
+        index = {"uui-button": bd}
+        cm = ComponentMatch(tag="<uui-button", lines=(5,))
+        enriched = enrich_component_match(cm, index, "2.0.0")
+        self.assertTrue(enriched.has_breaking_changes)
+        self.assertEqual(enriched.breaking_change, "Removed input X")
+
+    def test_without_behavior(self):
+        cm = ComponentMatch(tag="<uui-unknown", lines=(1,))
+        enriched = enrich_component_match(cm, {}, None)
+        self.assertIsNone(enriched.behavior_definition)
+        self.assertFalse(enriched.has_breaking_changes)
+
+    def test_preserves_lines(self):
+        bd = BehaviorDefinition("uui-grid", "1.0.0", "<uui-grid>", "g.json", ())
+        index = {"uui-grid": bd}
+        cm = ComponentMatch(tag="<uui-grid", lines=(3, 7, 15))
+        enriched = enrich_component_match(cm, index, None)
+        self.assertEqual(enriched.lines, (3, 7, 15))
+        self.assertEqual(enriched.tag, "<uui-grid")
+
+
+# ===========================================================================
+# TestDefinitionsConfigValidation — definitions config validation
+# ===========================================================================
+
+
+class TestDefinitionsConfigValidation(unittest.TestCase):
+    """Tests for definitions config validation in validate_config."""
+
+    def _base_config(self):
+        return {
+            "patterns": ["<uui-button"],
+            "application_repo": [
+                {"source_path": "/tmp", "replace_path": "/", "report_name": "test"},
+            ],
+        }
+
+    def test_valid_definitions_config(self):
+        config = self._base_config()
+        config["definitions_path"] = "behaviors"
+        config["definitions_glob"] = "*.behavior.json"
+        validate_config(config)  # should not raise
+
+    def test_definitions_path_not_string_fails(self):
+        config = self._base_config()
+        config["definitions_path"] = 123
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(config)
+        self.assertIn("definitions_path", str(ctx.exception))
+
+    def test_definitions_glob_not_string_fails(self):
+        config = self._base_config()
+        config["definitions_glob"] = 456
+        with self.assertRaises(ValueError) as ctx:
+            validate_config(config)
+        self.assertIn("definitions_glob", str(ctx.exception))
+
+    def test_absent_definitions_fields_ok(self):
+        config = self._base_config()
+        validate_config(config)  # should not raise
+
+
+# ===========================================================================
+# TestParseDefinitionsConfig — definitions config parsing
+# ===========================================================================
+
+
+class TestParseDefinitionsConfig(unittest.TestCase):
+    """Tests for parse_definitions_config."""
+
+    def test_present(self):
+        config = {"definitions_path": "behaviors", "definitions_glob": "*.test.json"}
+        path, glob = parse_definitions_config(config)
+        self.assertEqual(path, Path("behaviors"))
+        self.assertEqual(glob, "*.test.json")
+
+    def test_absent(self):
+        path, glob = parse_definitions_config({})
+        self.assertIsNone(path)
+        self.assertEqual(glob, "*.behavior.json")
+
+    def test_defaults_glob_when_only_path(self):
+        config = {"definitions_path": "defs"}
+        path, glob = parse_definitions_config(config)
+        self.assertEqual(path, Path("defs"))
+        self.assertEqual(glob, "*.behavior.json")
+
+
+# ===========================================================================
+# TestBehaviorIntegration — end-to-end with behaviors
+# ===========================================================================
+
+
+class TestBehaviorIntegration(TempDirMixin, unittest.TestCase):
+    """End-to-end tests for behavior integration in JSON output."""
+
+    def _create_behavior(self, filename: str, data: dict) -> Path:
+        behaviors_dir = self.test_dir / "behaviors"
+        behaviors_dir.mkdir(exist_ok=True)
+        path = behaviors_dir / filename
+        path.write_text(json.dumps(data))
+        return path
+
+    def test_json_output_includes_behavior_definition(self):
+        self._create_html("src/page.html", "<uui-general-button>")
+        self._create_behavior(
+            "uui-general-button.behavior.json",
+            {
+                "component": "uui-general-button",
+                "version": "21.5.1",
+                "tag": "<uui-general-button>",
+                "breaking_changes": [],
+            },
+        )
+        config = {
+            "patterns": ["<uui-general-button"],
+            "definitions_path": "behaviors",
+            "definitions_glob": "*.behavior.json",
+            "application_repo": [
+                {
+                    "source_path": str(self.test_dir / "src"),
+                    "replace_path": str(self.test_dir) + "/",
+                    "report_name": "behavior_test",
+                }
+            ],
+        }
+        config_path = self._create_config(config)
+        output_dir = self.test_dir / "output"
+
+        exit_code = main(["-c", str(config_path), "-o", str(output_dir)])
+        self.assertEqual(exit_code, 0)
+
+        json_file = next(iter(output_dir.glob("behavior_test-*.json")))
+        data = json.loads(json_file.read_text())
+        component = data["pages"][0]["components"][0]
+        self.assertEqual(component["behavior_definition"], "uui-general-button.behavior.json")
+        self.assertFalse(component["has_breaking_changes"])
+        self.assertIsNone(component["breaking_change"])
+
+    def test_json_output_with_breaking_changes(self):
+        self._create_html("src/page.html", "<uui-panel>")
+        self._create_behavior(
+            "uui-panel.behavior.json",
+            {
+                "component": "uui-panel",
+                "version": "2.0.0",
+                "tag": "<uui-panel>",
+                "breaking_changes": [
+                    {"version": "2.4.0", "description": "Removed header input"},
+                ],
+            },
+        )
+        config = {
+            "patterns": ["<uui-panel"],
+            "definitions_path": "behaviors",
+            "definitions_glob": "*.behavior.json",
+            "release": {
+                "version": "2.4.0",
+                "affected_components": ["uui-panel"],
+                "date": "2026-02-14",
+            },
+            "application_repo": [
+                {
+                    "source_path": str(self.test_dir / "src"),
+                    "replace_path": str(self.test_dir) + "/",
+                    "report_name": "breaking_test",
+                }
+            ],
+        }
+        config_path = self._create_config(config)
+        output_dir = self.test_dir / "output"
+
+        exit_code = main(["-c", str(config_path), "-o", str(output_dir)])
+        self.assertEqual(exit_code, 0)
+
+        json_file = next(iter(output_dir.glob("breaking_test-*.json")))
+        data = json.loads(json_file.read_text())
+        component = data["pages"][0]["components"][0]
+        self.assertTrue(component["has_breaking_changes"])
+        self.assertEqual(component["breaking_change"], "Removed header input")
+
+    def test_json_output_without_definitions_config(self):
+        self._create_html("src/page.html", "<uui-button>")
+        config = {
+            "patterns": ["<uui-button"],
+            "application_repo": [
+                {
+                    "source_path": str(self.test_dir / "src"),
+                    "replace_path": str(self.test_dir) + "/",
+                    "report_name": "no_behavior_test",
+                }
+            ],
+        }
+        config_path = self._create_config(config)
+        output_dir = self.test_dir / "output"
+
+        exit_code = main(["-c", str(config_path), "-o", str(output_dir)])
+        self.assertEqual(exit_code, 0)
+
+        json_file = next(iter(output_dir.glob("no_behavior_test-*.json")))
+        data = json.loads(json_file.read_text())
+        component = data["pages"][0]["components"][0]
+        self.assertIsNone(component["behavior_definition"])
+        self.assertFalse(component["has_breaking_changes"])
 
 
 if __name__ == "__main__":
