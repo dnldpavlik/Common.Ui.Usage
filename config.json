@@ -23,7 +23,8 @@
         "<uui-about",
         "<pui-utility-bar",
         "<mui-callout-cards",
-        "<uui-bread-crumb"
+        "<uui-bread-crumb",
+        "<uui-padding"
     ],
     "application_repo": [
         {
